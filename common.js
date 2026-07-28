@@ -82,10 +82,65 @@ var DC = (function() {
         return result;
     }
 
-    // ── 从 JSON 格式字符串中搜索 "key":"value" 提取值（不依赖 JSON.parse） ──
+    // ── JSON 转义序列还原：\" → "，\\ → \，\/ → /，\n → 换行 等 ──
+    // 同时去除源数据中残留的孤立反斜杠（如 \" 未被正确解析时的多余 \）
+    function decodeJsonEscapes(s) {
+        if (s == null) return '';
+        return String(s).replace(/\\(.)/g, function(_, c) {
+            switch (c) {
+                case 'n':  return '\n';
+                case 'r':  return '\r';
+                case 't':  return '\t';
+                case '"':  return '"';
+                case '\\': return '\\';
+                case '/':  return '/';
+                default:   return c; // 未知转义：去掉反斜杠，保留后面的字符
+            }
+        });
+    }
+
+    // ── 转义感知的值扫描：从 valStart 起，正确处理 \" 转义引号与 \\ 转义 ──
+    // 支持三种形态：普通引号 "value"、转义引号 \"value\"、无引号纯值
+    function scanValue(rest, valStart) {
+        if (rest[valStart] === '"') {
+            // 普通引号，逐个字符扫描，遇 \ 时连同其后字符一并保留（不当作结束）
+            var i = valStart + 1, buf = '';
+            while (i < rest.length) {
+                var c = rest[i];
+                if (c === '\\') { buf += c + (rest[i + 1] || ''); i += 2; continue; }
+                if (c === '"') { return buf; }
+                buf += c; i++;
+            }
+            return buf;
+        }
+        if (rest[valStart] === '\\' && rest[valStart + 1] === '"') {
+            // 转义引号 \"value\"（双编码 JSON 常见形态）
+            var j = valStart + 2, b2 = '';
+            while (j < rest.length) {
+                if (rest[j] === '\\' && rest[j + 1] === '"') { return b2; }
+                b2 += rest[j]; j++;
+            }
+            return b2;
+        }
+        // 无引号纯值：截断到分隔符
+        var k = valStart, b3 = '';
+        while (k < rest.length && ' \n\r\t;,}'.indexOf(rest[k]) === -1) { b3 += rest[k]; k++; }
+        return b3;
+    }
+
+    // ── 从 JSON 格式字符串中搜索 "key":"value" 提取值 ──
     function extractFromStr(str, key) {
         if (!str) return null;
 
+        // 优先：整段是合法 JSON 时直接解析（最常见、最干净，无残留反斜杠）
+        try {
+            var parsed = JSON.parse(str);
+            if (parsed && typeof parsed === 'object' && key in parsed && parsed[key] != null) {
+                return String(parsed[key]).replace(/[\n\r\t]+/g, ' ').trim() || null;
+            }
+        } catch (e) { /* 不是合法 JSON，走下面的字符串扫描 */ }
+
+        // 回退：转义感知的字符串扫描（兼容 JSON 片段 / 非标准 JSON）
         function doExtract(s, quoteStyle) {
             var keyWithQuote = quoteStyle + key + quoteStyle;
             var idx = s.indexOf(keyWithQuote);
@@ -103,32 +158,8 @@ var DC = (function() {
             while (valStart < rest.length && (rest[valStart] === ' ' || rest[valStart] === '\t')) valStart++;
             if (valStart >= rest.length) return null;
 
-            // 情况1：引号包裹 "value"
-            if (rest[valStart] === '"') {
-                var endIdx = rest.indexOf('"', valStart + 1);
-                var v1 = endIdx === -1 ? null : rest.slice(valStart + 1, endIdx).trim();
-                if (v1) v1 = v1.replace(/[\n\r\t]+/g, ' ').trim();
-                return v1 || null;
-            }
-            // 情况2：转义引号 \"value\"
-            if (rest[valStart] === '\\' && rest[valStart + 1] === '"') {
-                var escEnd = rest.indexOf('\\"', valStart + 2);
-                var v2 = escEnd === -1 ? null : rest.slice(valStart + 2, escEnd).trim();
-                if (v2) v2 = v2.replace(/[\n\r\t]+/g, ' ').trim();
-                return v2 || null;
-            }
-            // 情况3：纯值（截断到分隔符）
-            var valEnd = rest.length;
-            for (var k = valStart; k < rest.length; k++) {
-                if (rest[k] === ';' || rest[k] === ',' || rest[k] === '}' ||
-                    rest[k] === '\n' || rest[k] === '\r' || rest[k] === ' ') {
-                    valEnd = k; break;
-                }
-            }
-            var val = rest.slice(valStart, valEnd).trim();
-            // 清理多余换行符和不可见字符
-            val = val.replace(/[\n\r\t]+/g, ' ').trim();
-            return val || null;
+            var raw = scanValue(rest, valStart).replace(/[\n\r\t]+/g, ' ').trim();
+            return raw ? decodeJsonEscapes(raw) : null;
         }
 
         return doExtract(str, '"') || doExtract(str, '\\"');
