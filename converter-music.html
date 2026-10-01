@@ -597,6 +597,8 @@
 
                 DC.hideLoader();
                 DC.showNotification('✅ 转换完成！' + layout.pairCount + ' 条不一致对照，已下载 ' + fileName);
+                // 便于确认页面是否已加载到最新导出规则
+                console.log('[音乐模块] 导出规则 v2：左右交叉配对 · 无空行 · 按标注时间升序', layout.pairCount, '条');
                 setTimeout(resetAll, 3000);
             } catch(err) {
                 DC.hideLoader();

@@ -700,7 +700,8 @@ function navigateTo(page) {
     subEl.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);font-size:14px">加载中...</div>';
     currentPage = page;
 
-    fetch(cfg.file)
+    // 带时间戳请求，绕开浏览器缓存，保证子页面的改动能即时生效
+    fetch(cfg.file + '?v=' + Date.now())
         .then(function(r){ return r.text(); })
         .then(function(html){
             // 提取 body 内容（去掉 html/head）
