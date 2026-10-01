@@ -489,10 +489,19 @@
     // 只保留两者标注结果不一致的组合，每个不一致组合单独占一行（左右并排）。
     //   左组（C/D/E 列）＝ 前缀「聚类-云雀联营-南宁-」的标注员
     //   右组（G/H/I 列）＝ 前缀「云雀联营-」的标注员
-    // 「标注时间」「feed_id」逐行填写；没有不一致配对的 feed_id 不输出；块与块之间留 1 个空行。
+    // 「标注时间」「feed_id」逐行填写；没有不一致配对的 feed_id 不输出；
+    // 整表按「标注时间」升序排列，行与行之间不留空行。
     function isLeftGroup(annotator) {
         // 左侧固定为「聚类-云雀联营-南宁-」前缀；其余（「云雀联营-」前缀）固定落右侧
         return String(annotator || '').indexOf('聚类') === 0;
+    }
+
+    // 把「2026/9/30」这类时间文本转成可比较的时间戳（无法解析时返回 0）
+    function parseTimeValue(t) {
+        var m = String(t || '').match(/(\d{4})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/);
+        if (m) return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10)).getTime();
+        var d = Date.parse(String(t || ''));
+        return isNaN(d) ? 0 : d;
     }
 
     function buildExportLayout() {
@@ -514,8 +523,17 @@
         var aoa = [['标注时间', 'feed_id', '题目ID', '标注员', '标注结果', '', '题目ID', '标注员', '标注结果']];
         var pairCount = 0;
 
-        feedOrder.forEach(function(fid) {
-            var bucket = feedMap[fid];
+        // 按标注时间升序排列（时间相同时保持原始出现顺序）
+        var feedList = feedOrder.map(function(fid, seq) {
+            return { fid: fid, seq: seq, bucket: feedMap[fid] };
+        });
+        feedList.sort(function(a, b) {
+            var d = parseTimeValue(a.bucket.time) - parseTimeValue(b.bucket.time);
+            return d !== 0 ? d : (a.seq - b.seq);
+        });
+
+        feedList.forEach(function(item) {
+            var bucket = item.bucket;
             var pairs = [];
 
             // 左组 × 右组 交叉配对，只保留左右标注结果不一致的组合
@@ -529,8 +547,6 @@
             });
 
             if (!pairs.length) return; // 该 feed_id 左右无分歧，整块不输出
-
-            if (aoa.length > 1) aoa.push([]); // 块间空行
 
             pairs.forEach(function(p) {
                 aoa.push([
