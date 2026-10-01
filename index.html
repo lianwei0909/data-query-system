@@ -51,8 +51,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .breadcrumb-item.current{color:var(--text-primary);font-weight:600}
 .topbar-actions{display:flex;align-items:center;gap:8px}
 .topbar-user{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:var(--radius-sm);cursor:default;border:1px solid var(--border);transition:all .15s}
-.topbar-logout{background:none;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;width:26px;height:26px;border-radius:6px;font-size:12px;transition:all .15s}
-.topbar-logout:hover{color:var(--red);border-color:var(--red);background:var(--red-bg)}
 .page-content{flex:1;overflow-y:auto;overflow-x:hidden;padding:28px 32px}
 
 /* ═══════════ 子页面统一样式 ═══════════ */
@@ -423,14 +421,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .notification.error{background:rgba(247,95,95,.18);border:1px solid rgba(247,95,95,.5);color:#fca5a5}
 .notification.info{background:rgba(79,142,247,.18);border:1px solid rgba(79,142,247,.5);color:#93c5fd}
 
-/* ====== 登录遮罩 ====== */
-#login-overlay{position:fixed;inset:0;z-index:9999;background:rgba(8,9,13,.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);display:none;align-items:center;justify-content:center;flex-direction:column;gap:18px}
-#login-overlay h2{font-size:1.5em;font-weight:800;color:var(--text-primary)}
-#login-overlay p{color:var(--text-muted);font-size:.9em}
-#login-overlay input{width:320px;padding:14px 20px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;font-size:1em;outline:none;text-align:center}
-#login-overlay input:focus{border-color:var(--accent)}
-#login-overlay .login-btn{padding:12px 48px;border-radius:50px;border:none;background:linear-gradient(135deg,#4f8ef7,#7b6cf7);color:#fff;font-size:1em;font-weight:700;cursor:pointer;transition:transform .2s}
-#login-overlay .login-btn:hover{transform:translateY(-2px)}
 </style>
 <meta name="omega:scene" content="webpage">
 <meta name="omega:version" content="1">
@@ -440,14 +430,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 <!-- 统一加载 XLSX 库，子页面不再各自从 CDN 引入（L5 修复） -->
 <script src="./xlsx.full.min.js"></script>
 <script src="common.js"></script><script>window.SHIFT_DATA = window.SHIFT_DATA || null;</script>
-
-<!-- 登录遮罩 -->
-<div id="login-overlay">
-    <h2>👤 请输入你的英文名</h2>
-    <p>输入后按回车或点击登录</p>
-    <input type="text" id="login-name-input" placeholder="请输入英文名（如 anweili）" maxlength="50" />
-    <button class="login-btn" onclick="doLogin()">登 录</button>
-</div>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
@@ -496,11 +478,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
     </a>
   </div>
   <div class="sidebar-footer">
-    <div class="user-card" onclick="doLogout()" title="点击退出登录">
-      <div class="user-avatar-sm" id="side-avatar">U</div>
+    <div class="user-card" title="当前账号">
+      <div class="user-avatar-sm" id="side-avatar">A</div>
       <div class="user-info-sm">
-        <div class="user-name-sm" id="side-name">未登录</div>
-        <div class="user-role-sm">点击退出</div>
+        <div class="user-name-sm" id="side-name">anweili</div>
+        <div class="user-role-sm">当前账号</div>
       </div>
     </div>
   </div>
@@ -517,9 +499,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
     <div class="topbar-actions">
       <div class="topbar-user">
         <div class="user-avatar-sm" id="top-avatar">U</div>
-        <span id="top-name" style="font-size:12px;font-weight:600;color:var(--text-primary)">未登录</span>
+        <span id="top-name" style="font-size:12px;font-weight:600;color:var(--text-primary)">anweili</span>
       </div>
-      <button class="topbar-logout" onclick="doLogout()" title="退出登录">✕</button>
     </div>
   </header>
 
@@ -651,6 +632,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 
 <script>
 "use strict";
+
+// ═══════════════════════════════════════
+// 固定账号（登录功能已移除，换账号改这里）
+// ═══════════════════════════════════════
+var DEFAULT_USER = 'anweili';
+try { sessionStorage.removeItem('currentUser'); } catch(e) {}
 
 // ═══════════════════════════════════════
 // SPA 页面导航
@@ -1370,23 +1357,9 @@ function loadImportedData(){
 }
 
 // ═════════════════════════════════════
-// 登录
+// 当前账号（固定账号，已移除登录流程）
 // ═════════════════════════════════════
-var currentUser = sessionStorage.getItem('currentUser') || '';
-
-function checkLogin(){
-    var saved = sessionStorage.getItem('currentUser') || '';
-    if (saved){
-        currentUser = saved;
-        document.getElementById('login-overlay').style.display = 'none';
-        applyUser(saved);
-        setTimeout(displayUserShifts, 80);
-        return true;
-    } else {
-        document.getElementById('login-overlay').style.display = 'flex';
-        return false;
-    }
-}
+var currentUser = DEFAULT_USER;
 
 function applyUser(name){
     var initial = (name.charAt(0)||'U').toUpperCase();
@@ -1395,27 +1368,6 @@ function applyUser(name){
     document.getElementById('top-avatar').textContent = initial;
     document.getElementById('top-name').textContent = name;
 }
-
-function doLogin(){
-    var name = document.getElementById('login-name-input').value.trim();
-    if (!name){ alert('请输入英文名'); return; }
-    sessionStorage.setItem('currentUser', name);
-    currentUser = name;
-    checkLogin();
-    loadImportedData();
-}
-
-function doLogout(){
-    sessionStorage.removeItem('currentUser');
-    currentUser = '';
-    document.getElementById('login-overlay').style.display = 'flex';
-    applyUser('未登录');
-    initCalendar();
-}
-
-document.addEventListener('keydown', function(e){
-    if (e.key === 'Enter' && document.getElementById('login-overlay').style.display === 'flex') doLogin();
-});
 
 // ═══════════ 便签画板（画笔 + 文字备忘录） ═══════════
 var board = {
@@ -1782,7 +1734,8 @@ function resizeBoard(done){
 // 启动
 initCalendar();
 loadImportedData();
-checkLogin();
+applyUser(currentUser);
+setTimeout(displayUserShifts, 80);
 initBoard();
 // 刷新后恢复上次浏览的页面（非日历页）
 if (currentPage !== 'calendar' && PAGE_MAP[currentPage]) {

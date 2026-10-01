@@ -466,6 +466,7 @@
         DC.renderStats('stats', [
             { value: file1Data.length + file2Data.length, label: '合并总行数' },
             { value: parsedData.length, label: '争议记录数' },
+            { value: buildExportLayout().pairCount, label: '左右不一致对照' },
             { value: parsedData.filter(function(r){ return !r['feed_id'] || !r['标注结果']; }).length, label: '转化错误', error: true }
         ]);
 
@@ -483,6 +484,69 @@
         pager.render();
     }
 
+    // ── 导出布局 ──
+    // 核心逻辑：同一 feed_id 内，把「左侧标注员」与「右侧标注员」交叉配对，
+    // 只保留两者标注结果不一致的组合，每个不一致组合单独占一行（左右并排）。
+    //   左组（C/D/E 列）＝ 前缀「聚类-云雀联营-南宁-」的标注员
+    //   右组（G/H/I 列）＝ 前缀「云雀联营-」的标注员
+    // 「标注时间」「feed_id」逐行填写；没有不一致配对的 feed_id 不输出；块与块之间留 1 个空行。
+    function isLeftGroup(annotator) {
+        // 左侧固定为「聚类-云雀联营-南宁-」前缀；其余（「云雀联营-」前缀）固定落右侧
+        return String(annotator || '').indexOf('聚类') === 0;
+    }
+
+    function buildExportLayout() {
+        var feedOrder = [];
+        var feedMap = {};
+
+        for (var i = 0; i < parsedData.length; i++) {
+            var row = parsedData[i];
+            var fid = String(row['feed_id'] || '').trim();
+            if (!Object.prototype.hasOwnProperty.call(feedMap, fid)) {
+                feedMap[fid] = { feedId: fid, time: row['标注时间'] || '', left: [], right: [] };
+                feedOrder.push(fid);
+            }
+            var bucket = feedMap[fid];
+            if (isLeftGroup(row['标注员'])) bucket.left.push(row);
+            else bucket.right.push(row);
+        }
+
+        var aoa = [['标注时间', 'feed_id', '题目ID', '标注员', '标注结果', '', '题目ID', '标注员', '标注结果']];
+        var pairCount = 0;
+
+        feedOrder.forEach(function(fid) {
+            var bucket = feedMap[fid];
+            var pairs = [];
+
+            // 左组 × 右组 交叉配对，只保留左右标注结果不一致的组合
+            bucket.left.forEach(function(l) {
+                bucket.right.forEach(function(rt) {
+                    var lv = String(l['标注结果'] || '').trim();
+                    var rv = String(rt['标注结果'] || '').trim();
+                    if (!lv || !rv || lv === rv) return; // 结果相同（或缺结果）＝ 无争议，不展示
+                    pairs.push([l, rt]);
+                });
+            });
+
+            if (!pairs.length) return; // 该 feed_id 左右无分歧，整块不输出
+
+            if (aoa.length > 1) aoa.push([]); // 块间空行
+
+            pairs.forEach(function(p) {
+                aoa.push([
+                    bucket.time,
+                    bucket.feedId,
+                    p[0]['题目ID'] || '', p[0]['标注员'] || '', p[0]['标注结果'] || '',
+                    '',
+                    p[1]['题目ID'] || '', p[1]['标注员'] || '', p[1]['标注结果'] || ''
+                ]);
+                pairCount++;
+            });
+        });
+
+        return { aoa: aoa, pairCount: pairCount };
+    }
+
     // ── 导出 ──
     function startConvert() {
         DC.showLoader('正在生成 Excel 文件...');
@@ -490,35 +554,25 @@
 
         setTimeout(function() {
             try {
-                // 按 feed_id 分组，组间插入空行
-                var aoa = [];
-                // 表头行
-                aoa.push(OUTPUT_COLS.slice());
+                var layout = buildExportLayout();
 
-                var lastFeedId = null;
-                for (var i = 0; i < parsedData.length; i++) {
-                    var row = parsedData[i];
-                    var feedId = String(row['feed_id'] || '').trim();
-
-                    // feed_id 变化时插入空行（全空数组）
-                    if (lastFeedId !== null && feedId !== lastFeedId) {
-                        var emptyRow = [];
-                        for (var c = 0; c < OUTPUT_COLS.length; c++) emptyRow.push('');
-                        aoa.push(emptyRow);
-                    }
-
-                    // 数据行
-                    var dataRow = [];
-                    for (var c = 0; c < OUTPUT_COLS.length; c++) {
-                        dataRow.push(row[OUTPUT_COLS[c]] || '');
-                    }
-                    aoa.push(dataRow);
-
-                    lastFeedId = feedId;
+                if (!layout.pairCount) {
+                    DC.hideLoader();
+                    DC.showNotification('⚠️ 未找到左右标注结果不一致的数据', 'error');
+                    return;
                 }
 
                 // 用 XLSX 直接写入（aoa = array of arrays）
-                var ws = XLSX.utils.aoa_to_sheet(aoa);
+                var ws = XLSX.utils.aoa_to_sheet(layout.aoa);
+
+                // 固定 9 列：标注时间 / feed_id / 左组(题目ID/标注员/标注结果) / 间隔 / 右组(题目ID/标注员/标注结果)
+                ws['!cols'] = [
+                    { wch: 12 }, { wch: 22 },
+                    { wch: 14 }, { wch: 26 }, { wch: 10 },
+                    { wch: 3 },
+                    { wch: 14 }, { wch: 26 }, { wch: 10 }
+                ];
+
                 var wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, '争议数据');
 
@@ -526,7 +580,7 @@
                 XLSX.writeFile(wb, fileName);
 
                 DC.hideLoader();
-                DC.showNotification('✅ 转换完成！已下载 ' + fileName);
+                DC.showNotification('✅ 转换完成！' + layout.pairCount + ' 条不一致对照，已下载 ' + fileName);
                 setTimeout(resetAll, 3000);
             } catch(err) {
                 DC.hideLoader();
