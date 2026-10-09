@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    scheduler.js — 智能排班模块（求解器 + 校验 + Excel 导出 + 页面逻辑）
-   依赖：全局 XLSX（index.html 已加载 xlsx.full.min.js）
+   依赖：全局 XLSX（index.html 已加载 xlsx.full.min.js，实为 xlsx-js-style，支持单元格样式）
    可被 Node 直接 require 做单元测试（DOM 部分自动跳过）
    ═══════════════════════════════════════════════════════════════ */
 var SCH = (function () {
@@ -8,9 +8,9 @@ var SCH = (function () {
 
     // ── 常量 ──
     var LEAVE_TYPES = ['年假', '病假', '事假', '产检假', '婚假', '丧假', '调休假', '育儿假', '陪产假', '产假'];
-    var DAY_SHIFTS = ['早班2', '正常班'];
     var NIGHT_SHIFT = '小夜班3';
-    var SHIFT_TIME = { '早班2': '8 - 17', '正常班': '9 - 18', '小夜班3': '15 - 24' };
+    var DAY_SHIFT = '白班';
+    var SHIFT_TIME = { '白班': '9 - 18', '小夜班3': '15 - 24' };
 
     // 状态编码：0=休/假  1=白班  2=夜班
     var OFF = 0, DAY = 1, NIGHT = 2;
@@ -20,23 +20,30 @@ var SCH = (function () {
     var HARD = 1000;
     // 软目标权重。「孤立单休」不是软目标 —— 休息必须连续两天，已按硬约束处理
     var W = {
-        longRest: 12, run6: 15, segLen: 6,
-        segMix: 4, allNight: 120, allDay: 8,
-        nightBias: 8, weekendBal: 3, prefer: 3, sw: 2
+        longRest: 12, run6: 15, segLen: 8,
+        segMix: 2, allNight: 120, allDay: 8,
+        nightBias: 4, weekendBal: 5, prefer: 3, sw: 2,
+        // 「小夜后次日不上白班」降级为重罚软约束：在 7 人规模下它与
+        // 「每天≥2 人夜班」互相冲突，硬卡死会导致整个班表无解。
+        // 权重给得很高（仅次于硬违规），求解器仍极力避免，但必要时可让步。
+        nightToDay: 900
     };
 
     // nightBias = 往期排班统计出来的「夜班占其出勤的比例」，用来让新排班延续每个人的习惯
     var DEFAULT_PEOPLE = [
-        { en: 'kafewu', cn: '吴超', org: 'kafewu(吴超)', dayShift: '早班2', prefer: 'day', active: true, nightBias: 0.37 },
-        { en: 'cuijunfang', cn: '崔俊芳', org: 'cuijunfang(崔俊芳)', dayShift: '正常班', prefer: '', active: false, nightBias: 0 },
-        { en: 'nomadshi', cn: '石浩东', org: 'nomadshi (石浩东)', dayShift: '正常班', prefer: '', active: true, nightBias: 0.43 },
-        { en: 'anweili', cn: '李安维', org: 'anweili(李安维)', dayShift: '正常班', prefer: '', active: true, nightBias: 0.50 },
-        { en: 'hanleywang', cn: '王汉明', org: 'hanleywang(王汉明)', dayShift: '正常班', prefer: 'night', active: true, nightBias: 0.77 },
-        { en: 'ventili', cn: '厉津睿', org: 'ventili(厉津睿)', dayShift: '正常班', prefer: 'night', active: true, nightBias: 0.62, weekDay: '4,5', weekNight: '1,2,3,6,7' },
-        { en: 'zaklin', cn: '林国宇', org: 'zaklin(林国宇)', dayShift: '早班2', prefer: 'night', active: true, nightBias: 0.77, weekDay: '4,5', weekNight: '1,2,3,6,7' }
+        { en: 'kafewu', cn: '吴超', org: 'kafewu(吴超)', prefer: 'day', active: true, nightBias: 0.37 },
+        { en: 'cuijunfang', cn: '崔俊芳', org: 'cuijunfang(崔俊芳)', prefer: '', active: false, nightBias: 0 },
+        { en: 'nomadshi', cn: '石浩东', org: 'nomadshi (石浩东)', prefer: '', active: true, nightBias: 0.43 },
+        { en: 'anweili', cn: '李安维', org: 'anweili(李安维)', prefer: '', active: true, nightBias: 0.50 },
+        { en: 'hanleywang', cn: '王汉明', org: 'hanleywang(王汉明)', prefer: 'night', active: true, nightBias: 0.77 },
+        { en: 'ventili', cn: '厉津睿', org: 'ventili(厉津睿)', prefer: 'night', active: true, nightBias: 0.62, weekDay: '4,5', weekNight: '1,2,3,6,7' },
+        { en: 'zaklin', cn: '林国宇', org: 'zaklin(林国宇)', prefer: 'night', active: true, nightBias: 0.77, weekDay: '4,5', weekNight: '1,2,3,6,7' }
     ];
 
-    var DEFAULT_RULES = { minDay: 2, minNight: 2, maxStaff: 5, maxRun: 6, targetDays: 21 };
+    // nightToDayHard：小夜后次日不上白班是否作为硬约束。
+    // 默认 false（重罚软约束）—— 7 人规模下它与「每天≥2 人夜班」互斥，
+    // 硬卡死会让整个班表无解，只能靠击穿白班人数下限来满足。
+    var DEFAULT_RULES = { minDay: 2, minNight: 2, maxStaff: 5, maxRun: 6, targetDays: 21, nightToDayHard: false };
 
     // ═══════════ 日期工具 ═══════════
     // month = 周期结束月份（1-12），周期 = 上月21号 ~ 本月20号
@@ -109,10 +116,10 @@ var SCH = (function () {
     }
 
     // 把用户输入编译成求解器输入
-    // people: [{cn,en,org,dayShift,prefer,target,leave,off,fix}]  （active 已过滤）
+    // people: [{cn,en,org,prefer,target,leave,off,fix}]  （active 已过滤）
     function buildInput(dates, people, rules, carry) {
         var P = people.length, T = dates.length;
-        var fixed = [], leaveName = [], targets = [], prefers = [], dayShifts = [], nightBias = [];
+        var fixed = [], leaveName = [], targets = [], prefers = [], nightBias = [];
         for (var p = 0; p < P; p++) {
             var fp = new Array(T).fill(FIX_FREE);
             var ln = new Array(T).fill('');
@@ -147,7 +154,6 @@ var SCH = (function () {
             targets.push(pe.target || rules.targetDays);
             nightBias.push(typeof pe.nightBias === 'number' ? pe.nightBias : 0.5);
             prefers.push(pe.prefer || '');
-            dayShifts.push(pe.dayShift || '正常班');
         }
         // 依据往期的夜班倾向，给每人算一个目标夜班天数：
         // 先按各自比例分摊，再整体缩放到「每天最低夜班数 × 天数」的总量
@@ -156,7 +162,14 @@ var SCH = (function () {
             totalWork += targets[tb];
             biasSum += nightBias[tb] * targets[tb];
         }
-        var totalNight = Math.max(rules.minNight * T, totalWork - rules.minDay * T);
+        // 夜班总量：先给每天保底 minNight，剩余名额按各人夜班倾向加权分配。
+        // 直接用 totalWork - minDay*T 会把夜班推到上限、白班贴死下限，
+        // 导致个别天白班跌破 minDay —— 这里取居中目标，给白班留出余量。
+        var minTotal = rules.minDay + rules.minNight;
+        var biasRatio = totalWork > 0 ? biasSum / totalWork : 0.5;
+        var totalNight = Math.max(rules.minNight * T,
+            Math.min(totalWork - rules.minDay * T,
+                Math.round(rules.minNight * T + (totalWork - minTotal * T) * biasRatio)));
         var scale = biasSum > 0 ? totalNight / biasSum : 0;
         var nightTarget = [];
         for (var tn = 0; tn < P; tn++) nightTarget.push(targets[tn] * nightBias[tn] * scale);
@@ -165,7 +178,7 @@ var SCH = (function () {
             dates: dates, people: people, rules: rules,
             nightTarget: nightTarget,
             fixed: fixed, leaveName: leaveName, targets: targets,
-            prefers: prefers, dayShifts: dayShifts,
+            prefers: prefers,
             weekend: dates.map(isWeekend),
             carry: carry || null
         };
@@ -298,9 +311,12 @@ var SCH = (function () {
                 else if (run === this.maxRun) soft += W.run6;
             } else run = 0;
         }
-        // 小夜 → 次日不能白班
-        if (this.prevNight[p] && a[0] === DAY) hard += HARD;
-        for (var j = 1; j < T; j++) { if (a[j - 1] === NIGHT && a[j] === DAY) hard += HARD; }
+        // 小夜 → 次日不能白班（默认重罚软约束；rules.nightToDayHard=true 时恢复硬约束）
+        var n2dHard = !!(this.in.rules && this.in.rules.nightToDayHard);
+        if (this.prevNight[p] && a[0] === DAY) { if (n2dHard) hard += HARD; else soft += W.nightToDay; }
+        for (var j = 1; j < T; j++) {
+            if (a[j - 1] === NIGHT && a[j] === DAY) { if (n2dHard) hard += HARD; else soft += W.nightToDay; }
+        }
         // 按星期固定班次（上班日必须是指定的白/夜）—— 这是明确的个人要求，违约代价给得更高
         for (var wf = 0; wf < T; wf++) {
             var fw = this.in.fixed[p][wf];
@@ -324,6 +340,7 @@ var SCH = (function () {
         // 休息形态：孤立单休 = 硬约束（必须双休）；连续休 3 天以上只是轻微扣分
         for (var m = 0; m < T; m++) {
             if (a[m] !== OFF) continue;
+            if (this.in.fixed[p][m] === FIX_LEAVE) continue; // 请假日不参与双休判定（与 validate 口径一致）
             var left = m > 0 ? (a[m - 1] === OFF ? 1 : 0) : (this.prevOff[p] ? 1 : 0);
             var right = m < T - 1 ? (a[m + 1] === OFF ? 1 : 0) : 1; // 周期边界不算孤立
             if (!left && !right) hard += HARD;
@@ -394,8 +411,11 @@ var SCH = (function () {
                 if (a[k]) { run++; if (run > this.maxRun) hard += HARD; else if (run === this.maxRun) soft += W.run6; }
                 else run = 0;
             }
-            if (this.prevNight[p] && a[0] === DAY) hard += HARD;
-            for (var j = 1; j < this.T; j++) if (a[j - 1] === NIGHT && a[j] === DAY) hard += HARD;
+            var n2dHard2 = !!(this.in.rules && this.in.rules.nightToDayHard);
+            if (this.prevNight[p] && a[0] === DAY) { if (n2dHard2) hard += HARD; else soft += W.nightToDay; }
+            for (var j = 1; j < this.T; j++) {
+                if (a[j - 1] === NIGHT && a[j] === DAY) { if (n2dHard2) hard += HARD; else soft += W.nightToDay; }
+            }
             for (var wf = 0; wf < this.T; wf++) {
                 var fw = this.in.fixed[p][wf];
                 if (fw === FIX_DAY_IF_WORK && a[wf] === NIGHT) hard += HARD * 3;
@@ -416,6 +436,7 @@ var SCH = (function () {
             }
             for (var m = 0; m < this.T; m++) {
                 if (a[m] !== OFF) continue;
+                if (this.in.fixed[p][m] === FIX_LEAVE) continue; // 请假日不参与双休判定（与 validate 口径一致）
                 var left = m > 0 ? (a[m - 1] === OFF ? 1 : 0) : (this.prevOff[p] ? 1 : 0);
                 var right = m < this.T - 1 ? (a[m + 1] === OFF ? 1 : 0) : 1;
                 if (!left && !right) hard += HARD; else if (left && right) soft += W.longRest;
@@ -473,6 +494,21 @@ var SCH = (function () {
             for (var dd0 = 0; dd0 < T; dd0++) if (this.in.fixed[q0][dd0] === FIX_LEAVE) lv++;
             restNeed.push(Math.max(0, T - this.in.targets[q0] - lv));
         }
+        // 每日休息人数目标：按「总休息人天 / 天数」铺开，余量均匀打散。
+        // 原来固定每天 2 人休息，总量（2×T）常常少于实际需要的休息人天，
+        // 缺口只能靠修复器硬补 —— 补的时候必然拆出孤立单休。
+        var totalRestAll = 0;
+        for (var qr = 0; qr < P; qr++) totalRestAll += restNeed[qr];
+        var baseRest = Math.floor(totalRestAll / T);
+        var remRest = totalRestAll - baseRest * T;
+        var restTarget = new Array(T).fill(baseRest);
+        for (var rr = 0; rr < remRest; rr++) {
+            var ridx = Math.min(T - 1, Math.floor((rr + 0.5) * T / Math.max(1, remRest)));
+            restTarget[ridx]++;
+        }
+        var restCap = P - this.minTotal;   // 最多能休几人（保证上班人数够）
+        var restMin = P - this.maxStaff;   // 最少要休几人（不超过同时上班上限）
+        for (var rt = 0; rt < T; rt++) restTarget[rt] = Math.max(restMin, Math.min(restCap, restTarget[rt]));
         // 默认全部上班，随后逐日「开段」
         for (var pi0 = 0; pi0 < P; pi0++) for (var di0 = 0; di0 < T; di0++) this.a[pi0][di0] = DAY;
         // 每人还该分到几段休息（2 天一段），按它来轮转，避免有人段不够、出勤超标
@@ -493,8 +529,8 @@ var SCH = (function () {
             for (p = 0; p < P; p++) {
                 if (this.in.fixed[p][d] === FIX_REST && cont.indexOf(p) < 0) mustStart.push(p);
             }
-            var targetToday = (d === 0 || d === T - 1) ? 1 : 2;      // 当天休息人数目标
-            var targetTomorrow = (d + 1 === T - 1) ? 1 : 2;
+            var targetToday = restTarget[d];                          // 当天休息人数目标
+            var targetTomorrow = restTarget[d + 1];
             // 明天已经确定要休的人（必休 / 请假）。今天开段的人明天是「延续」，若他本就在明天必休里则不重复计数
             var offTomorrowSet = {}, offTomorrowCnt = 0;
             for (p = 0; p < P; p++) {
@@ -569,22 +605,38 @@ var SCH = (function () {
             }
         }
         // 人数校正：杜绝「当天全员上班」和「3 人以上同时休息」
+        // 关键：只动「休息段的边缘日」，避免从连休中间切断而裂出孤立单休
         for (var d3 = 0; d3 < T; d3++) {
             var restList = [], workList = [];
             for (q = 0; q < P; q++) {
                 if (this.a[q][d3] === OFF) restList.push(q); else workList.push(q);
             }
             if (!restList.length && workList.length) {
-                workList.sort(function (x, y) { return restNeed[y] - restNeed[x]; });
-                var pickW = workList[0], fw3 = this.in.fixed[pickW][d3];
-                if (fw3 !== FIX_DAY && fw3 !== FIX_NIGHT && fw3 !== FIX_REST && fw3 !== FIX_LEAVE) {
+                var candW = [];
+                for (var wi = 0; wi < workList.length; wi++) {
+                    var wp = workList[wi], wf = this.in.fixed[wp][d3];
+                    if (wf === FIX_DAY || wf === FIX_NIGHT || wf === FIX_REST || wf === FIX_LEAVE) continue;
+                    var wAdj = (d3 > 0 && this.a[wp][d3 - 1] === OFF) || (d3 < T - 1 && this.a[wp][d3 + 1] === OFF);
+                    candW.push({ p: wp, adj: wAdj ? 0 : 1, need: restNeed[wp] });
+                }
+                if (candW.length) {
+                    candW.sort(function (x, y) { return (x.adj - y.adj) || (y.need - x.need); });
+                    var pickW = candW[0].p;
                     this.a[pickW][d3] = OFF;
                     if (restNeed[pickW] > 0) restNeed[pickW]--;
                 }
             } else if (restList.length >= 3) {
-                restList.sort(function (x, y) { return restNeed[x] - restNeed[y]; });
-                var pickR = restList[0], fr3 = this.in.fixed[pickR][d3];
-                if (fr3 !== FIX_REST && fr3 !== FIX_LEAVE) this.a[pickR][d3] = DAY;
+                var candR = [];
+                for (var ri = 0; ri < restList.length; ri++) {
+                    var rp = restList[ri], rf = this.in.fixed[rp][d3];
+                    if (rf === FIX_REST || rf === FIX_LEAVE) continue;
+                    var rEdge = (d3 === 0 || this.a[rp][d3 - 1] !== OFF) || (d3 === T - 1 || this.a[rp][d3 + 1] !== OFF);
+                    candR.push({ p: rp, edge: rEdge ? 0 : 1, need: restNeed[rp] });
+                }
+                if (candR.length) {
+                    candR.sort(function (x, y) { return (x.edge - y.edge) || (x.need - y.need); });
+                    this.a[candR[0].p][d3] = DAY;
+                }
             }
         }
         // 强制：请假 / 必休 / 指定班次
@@ -609,7 +661,7 @@ var SCH = (function () {
         // 回溯失败时的兜底：逐日按配额贪心分配
         var whiteCnt = new Array(P).fill(0);
         for (var d2 = 0; d2 < T; d2++) {
-            var mustDay = [], mustNight = [], free = [], p2;
+            var mustDay = [], mustNight = [], prevNightList = [], free = [], p2;
             for (p2 = 0; p2 < P; p2++) {
                 if (this.a[p2][d2] === OFF) continue;
                 var prevIsNight = d2 > 0 ? (this.a[p2][d2 - 1] === NIGHT) : this.prevNight[p2];
@@ -617,7 +669,8 @@ var SCH = (function () {
                 if (fpw === FIX_DAY || fpw === FIX_DAY_IF_WORK) {
                     if (prevIsNight) { this.a[p2][d2] = OFF; continue; } // 昨日小夜+今日必白班：今天只能休
                     mustDay.push(p2);
-                } else if (fpw === FIX_NIGHT || fpw === FIX_NIGHT_IF_WORK || prevIsNight) mustNight.push(p2);
+                } else if (fpw === FIX_NIGHT || fpw === FIX_NIGHT_IF_WORK) mustNight.push(p2);
+                else if (prevIsNight) { prevNightList.push(p2); free.push(p2); } // 昨日小夜：优先夜班，非强制
                 else free.push(p2);
             }
             var workers = [];
@@ -626,15 +679,52 @@ var SCH = (function () {
             var mNow = workers.length;
             var loDay = Math.max(this.minDay, mustDay.length);
             var hiDay = Math.max(loDay, mNow - mustNight.length);
-            var dayQuota = Math.min(hiDay, Math.max(loDay, Math.round(mNow * 0.5)));
-            var daySet = mustDay.slice(0);
-            // 自由人里挑白班：白班少的优先、明天必须白班的优先（避免明天的白班被今天的小夜挡住）
+            var ideal = Math.round(mNow * 0.5);
+            // 前瞻上限：今晚排夜班、且明天还上班的人数有上限 —— 明天的白班必须留得下 minDay 人
+            // （小夜之后次日不能上白班，今天夜班排多了明天就没白班可排）
+            var cap = 999;
+            if (d2 + 1 < T) {
+                var wNext = 0, mn2 = 0;
+                for (var pn = 0; pn < P; pn++) {
+                    if (this.a[pn][d2 + 1] === OFF) continue;
+                    wNext++;
+                    var fn2 = this.in.fixed[pn][d2 + 1];
+                    if (fn2 === FIX_NIGHT || fn2 === FIX_NIGHT_IF_WORK) mn2++;
+                }
+                cap = wNext - this.minDay - mn2;
+            }
+            // 自由人排序：白班少的优先、明天必须白班的优先、昨日小夜者靠后
             free.sort(function (x, y) {
-                var sx = whiteCnt[x] + (self.tomorrowMustDay(x, d2) ? -3 : 0) + self.rand() * 0.8;
-                var sy = whiteCnt[y] + (self.tomorrowMustDay(y, d2) ? -3 : 0) + self.rand() * 0.8;
+                var sx = whiteCnt[x] + (self.tomorrowMustDay(x, d2) ? -3 : 0) + (prevNightList.indexOf(x) >= 0 ? 6 : 0) + self.rand() * 0.8;
+                var sy = whiteCnt[y] + (self.tomorrowMustDay(y, d2) ? -3 : 0) + (prevNightList.indexOf(y) >= 0 ? 6 : 0) + self.rand() * 0.8;
                 return sx - sy;
             });
-            for (var fi = 0; fi < free.length && daySet.length < dayQuota; fi++) daySet.push(free[fi]);
+            // 枚举白班方案，挑既满足当天白/夜下限、又不把明天白班挤没的组合
+            var daySet = null, bestDiff = Infinity;
+            var needLo = Math.max(0, loDay - mustDay.length);
+            var needHi = Math.min(free.length, hiDay - mustDay.length);
+            for (var nd = needLo; nd <= needHi; nd++) {
+                var cmbList = combinations(free, nd);
+                for (var ci = 0; ci < cmbList.length; ci++) {
+                    var trial = mustDay.concat(cmbList[ci]);
+                    if (d2 + 1 < T) {
+                        var carryCnt = 0;
+                        for (var pq = 0; pq < P; pq++) {
+                            if (this.a[pq][d2] === OFF || this.a[pq][d2 + 1] === OFF) continue;
+                            if (trial.indexOf(pq) < 0) carryCnt++;
+                        }
+                        if (carryCnt > cap) continue;
+                    }
+                    var diff = Math.abs(trial.length - ideal);
+                    if (diff < bestDiff) { bestDiff = diff; daySet = trial; }
+                }
+                if (daySet && bestDiff === 0) break;
+            }
+            if (!daySet) {
+                daySet = mustDay.slice(0);
+                var dq2 = Math.min(hiDay, Math.max(loDay, ideal));
+                for (var fi = 0; fi < free.length && daySet.length < dq2; fi++) daySet.push(free[fi]);
+            }
             for (var q2 = 0; q2 < workers.length; q2++) {
                 var pidx = workers[q2];
                 var isDay = daySet.indexOf(pidx) >= 0;
@@ -907,7 +997,10 @@ var SCH = (function () {
                     var fdw = this.in.fixed[p][d];
                     if (fdw === FIX_NIGHT || fdw === FIX_NIGHT_IF_WORK) continue;
                     if (this.runIfWork(p, d) > this.maxRun) continue;
-                    pull.push({ p: p, good: this.restRunLen(p, d) >= 3 ? 0 : 1 });
+                    // 只有「休息段≥3 天且在边缘」的休息日才可拆：拆完仍是连休
+                    var rlp = this.restRunLen(p, d);
+                    var rEp = (d === 0 || this.a[p][d - 1] !== OFF) || (d === this.T - 1 || this.a[p][d + 1] !== OFF);
+                    pull.push({ p: p, good: (rlp >= 3 && rEp) ? 0 : 1 });
                 }
                 pull.sort(function (x, y) { return x.good - y.good; });
                 if (pull.length) { this.setCell(pull[0].p, d, DAY); return true; }
@@ -1157,35 +1250,38 @@ var SCH = (function () {
     State.prototype.repair = function (maxSteps) {
         var steps = maxSteps || 300;
         var cnt = { w: 0, n: 0, c: 0, k: 0, r: 0, s: 0 }, s = 0, clearedTabu = false;
-        // 修不好就别把解改得更糟
-        var snap = this.a.map(function (r) { return r.slice(); });
-        var hard0 = this.fullCost().hard;
+        // 记录历史最优，结束时回到该状态 —— 保证 repair 单调不劣化
+        var c0 = this.fullCost();
+        var bestA = this.a.map(function (r) { return r.slice(); });
+        var bestHard = c0.hard, bestSoft = c0.soft;
         for (var tp = 0; tp < this.P; tp++) this.tabu[tp].fill(0);
         this.step = 0;
         for (; s < steps; s++) {
             this.step++;
-            if (this.fixWeekRule()) { cnt.w++; continue; }
-            if (this.fixNightToDay()) { cnt.n++; continue; }
-            if (this.fixCoverage()) { cnt.c++; continue; }
-            if (this.fixWorkSwap()) { cnt.t++; continue; }
-            if (this.fixWorkload()) { cnt.k++; continue; }
-            if (this.fixRuns()) { cnt.r++; continue; }
-            if (this.fixSoloRest()) { cnt.s++; continue; }
-            // 全都动不了可能是被禁忌表卡住：清一次禁忌再给一轮机会
-            if (!clearedTabu) {
-                clearedTabu = true;
-                for (var tp2 = 0; tp2 < this.P; tp2++) this.tabu[tp2].fill(0);
-                if (this.fixWeekRule() || this.fixNightToDay() || this.fixCoverage() || this.fixWorkload() || this.fixRuns() || this.fixSoloRest()) {
-                    this.step++; continue;
+            var moved = false;
+            if (this.fixWeekRule()) moved = true;
+            else if (this.fixNightToDay()) moved = true;
+            else if (this.fixCoverage()) moved = true;
+            else if (this.fixWorkSwap()) moved = true;
+            else if (this.fixWorkload()) moved = true;
+            else if (this.fixRuns()) moved = true;
+            else if (this.fixSoloRest()) moved = true;
+            if (!moved) {
+                if (!clearedTabu) {
+                    clearedTabu = true;
+                    for (var tp2 = 0; tp2 < this.P; tp2++) this.tabu[tp2].fill(0);
+                    continue;
                 }
+                break;
             }
-            break;
+            var cc = this.fullCost();
+            if (cc.hard < bestHard || (cc.hard === bestHard && cc.soft < bestSoft)) {
+                bestHard = cc.hard; bestSoft = cc.soft;
+                bestA = this.a.map(function (r) { return r.slice(); });
+            }
         }
+        this.a = bestA;
         this.refresh();
-        if (this.fullCost().hard > hard0) {
-            this.a = snap;
-            this.refresh();
-        }
     };
 
     // ── 主求解入口 ──
@@ -1200,11 +1296,12 @@ var SCH = (function () {
 
         // 阶段 A1：大量「构造 + 定向修复」（很快），先攒够满足全部硬约束的可行解
         var feasibles = [], pool = [];
-        for (var a = 0; a < 60 && feasibles.length < 3; a++) {
+        for (var a = 0; a < 120 && feasibles.length < 5; a++) {
             var st0 = new State(input, makeRand(1000 + a * 7919 + Math.floor(Math.random() * 100000)));
             st0.construct();
             // 白/夜无解的骨架直接换一个；但至少留一个兜底，避免一个候选都没有
-            if (!st0.dfsOk && (feasibles.length > 0 || pool.length > 0)) continue;
+            // 不再因为 dfsOk=false 就跳过：只要还没攒到足够可行解就继续尝试修复
+            if (!st0.dfsOk && feasibles.length >= 2 && pool.length >= 5) continue;
             st0.repair(300);
             var c0 = st0.fullCost();
             if (c0.hard === 0) { feasibles.push(st0); continue; }
@@ -1214,7 +1311,7 @@ var SCH = (function () {
 
         // 阶段 A2：还不够就挑几个最接近的做迭代局部搜索
         pool.sort(function (x, y) { return (x.cost.hard - y.cost.hard) || (x.cost.soft - y.cost.soft); });
-        for (var b = 0; b < Math.min(6, pool.length) && feasibles.length < 3; b++) {
+        for (var b = 0; b < Math.min(10, pool.length) && feasibles.length < 5; b++) {
             var st = pool[b].st, cc = pool[b].cost;
             for (var att = 0; att < 120 && cc.hard > 0; att++) {
                 var trial = new State(input, makeRand(Math.floor(Math.random() * 1e9)));
@@ -1241,7 +1338,6 @@ var SCH = (function () {
             sf.repair(150);
             if (sf.fullCost().hard === 0) { sf.anneal(80000, 6, 0.2); sf.repair(200); sf.reduceSoloRest(200); sf.repair(150); }
             keep(snapshot(sf));
-            if (best.cost.hard === 0 && f >= 1) break;
         }
 
         if (!best || best.cost.hard > 0) {
@@ -1301,7 +1397,7 @@ var SCH = (function () {
         var T = st.T, P = st.P, nodes = 0;
         function rec(d) {
             if (d >= T) return true;
-            if (++nodes > 5000) return false;
+            if (++nodes > 1500000) return false;
             var workers = [], mustDay = [], mustNight = [], free = [], p;
             for (p = 0; p < P; p++) {
                 if (st.a[p][d] === OFF) continue;
@@ -1367,35 +1463,8 @@ var SCH = (function () {
     }
 
     // ═══════════ 结果整理 ═══════════
-    // 白班细分：优先个人默认档位，并保证每天至少 1 个早班2
-    function splitDayShifts(input, a) {
-        var T = input.dates.length, P = input.people.length;
-        var earlyCnt = new Array(P).fill(0);
-        var out = [];
-        for (var p = 0; p < P; p++) out.push(new Array(T).fill(''));
-        for (var d = 0; d < T; d++) {
-            var dayWorkers = [];
-            for (var p2 = 0; p2 < P; p2++) if (a[p2][d] === DAY) dayWorkers.push(p2);
-            if (!dayWorkers.length) continue;
-            // 优先取默认档位为早班2的人
-            var early = dayWorkers.filter(function (x) { return input.dayShifts[x] === '早班2'; });
-            if (!early.length) {
-                // 轮转：选早班2累计最少的人
-                dayWorkers.sort(function (x, y) { return earlyCnt[x] - earlyCnt[y]; });
-                early = [dayWorkers[0]];
-            }
-            for (var q = 0; q < dayWorkers.length; q++) {
-                var pp = dayWorkers[q];
-                out[pp][d] = early.indexOf(pp) >= 0 ? '早班2' : '正常班';
-                if (early.indexOf(pp) >= 0) earlyCnt[pp]++;
-            }
-        }
-        return out;
-    }
-
     function buildResult(input, a) {
         var T = input.dates.length, P = input.people.length;
-        var shiftName = splitDayShifts(input, a);
         var grid = [], personStats = [];
         for (var p = 0; p < P; p++) {
             var row = [];
@@ -1411,7 +1480,7 @@ var SCH = (function () {
                     row.push(NIGHT_SHIFT); work++; night++;
                     if (input.weekend[d]) weekend++;
                 } else {
-                    row.push(shiftName[p][d]); work++;
+                    row.push(DAY_SHIFT); work++;
                     if (input.weekend[d]) weekend++;
                 }
             }
@@ -1505,7 +1574,7 @@ var SCH = (function () {
         if (typeof XLSX === 'undefined') return false;
         var T = input.dates.length, P = input.people.length;
         var aoa = [];
-        var r1 = ['排班原则：最低保障每天早班2人晚班2人', '', ''];
+        var r1 = ['排班原则：最低保障每天白班2人夜班2人', '', ''];
         input.dates.forEach(function (d) { r1.push(keyOf(d)); });
         aoa.push(r1);
         var r2 = ['企业名', '英文名', '中文名'];
@@ -1514,35 +1583,34 @@ var SCH = (function () {
         for (var p = 0; p < P; p++) {
             var row = [input.people[p].org, input.people[p].en, input.people[p].cn];
             for (var d = 0; d < T; d++) row.push(result.grid[p][d]);
-            // 个人汇总
+            // 个人汇总：白班 / 夜班 / 出勤 / 休
             var st = result.personStats[p];
-            var c1 = 0, c2 = 0, c3 = 0;
+            var c1 = 0, c3 = 0;
             for (var i = 0; i < T; i++) {
                 var nm = result.grid[p][i];
-                if (nm === '早班2') c1++; else if (nm === '正常班') c2++; else if (nm === '小夜班3') c3++;
+                if (nm === '白班') c1++; else if (nm === '小夜班3') c3++;
             }
-            row.push('', '', c1, c2, c3, st.work, st.rest);
+            row.push('', '', c1, c3, st.work, st.rest);
             LEAVE_TYPES.forEach(function (lt) { row.push(st.leaveDetail[lt] || 0); });
             aoa.push(row);
         }
-        aoa.push(['备注', '', '', '白班 = 早班2 / 正常班；夜班 = 小夜班3；最多 ' + input.rules.maxStaff + ' 人同时上班']);
+        aoa.push(['备注', '', '', '夜班 = 小夜班3；最多 ' + input.rules.maxStaff + ' 人同时上班']);
         aoa.push([]); aoa.push([]); aoa.push([]);
         var sIdx = aoa.length;
-        ['早班2', '正常班', '小夜班3', '日实际出勤', '休'].forEach(function (label) { aoa.push(['', '', label]); });
+        ['白班', '小夜班3', '日实际出勤', '休'].forEach(function (label) { aoa.push(['', '', label]); });
         for (var d2 = 0; d2 < T; d2++) {
-            var c1n = 0, c2n = 0, c3n = 0;
+            var c1n = 0, c3n = 0;
             for (var p2 = 0; p2 < P; p2++) {
                 var v = result.grid[p2][d2];
-                if (v === '早班2') c1n++; else if (v === '正常班') c2n++; else if (v === '小夜班3') c3n++;
+                if (v === '白班') c1n++; else if (v === '小夜班3') c3n++;
             }
             aoa[sIdx][3 + d2] = c1n;
-            aoa[sIdx + 1][3 + d2] = c2n;
-            aoa[sIdx + 2][3 + d2] = c3n;
-            aoa[sIdx + 3][3 + d2] = result.dayStats[d2].total;
-            aoa[sIdx + 4][3 + d2] = result.dayStats[d2].rest;
+            aoa[sIdx + 1][3 + d2] = c3n;
+            aoa[sIdx + 2][3 + d2] = result.dayStats[d2].total;
+            aoa[sIdx + 3][3 + d2] = result.dayStats[d2].rest;
         }
         aoa.push([]);
-        ['早班2', '正常班', '小夜班3'].forEach(function (k) { aoa.push([k, SHIFT_TIME[k]]); });
+        ['白班', '小夜班3'].forEach(function (k) { aoa.push([k, SHIFT_TIME[k]]); });
         aoa.push(['', '', '争议白班值班']);
         result.dayDuty.forEach(function (n, i) { aoa[aoa.length - 1][3 + i] = n; });
         aoa.push(['', '', '争议夜班值班']);
@@ -1552,6 +1620,52 @@ var SCH = (function () {
         ws['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 10 }];
         for (var c = 0; c < T; c++) ws['!cols'].push({ wch: 9 });
         for (var h = 0; h < 3 + T + 12; h++) ws['!cols'].push({ wch: 9 });
+
+        // ── 样式（xlsx-js-style：单元格样式仅在该库生效，标准 SheetJS 会忽略）──
+        var S = {
+            title:   { font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '4472C4' } }, alignment: { horizontal: 'center', vertical: 'center' } },
+            header:  { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '5B9BD5' } }, alignment: { horizontal: 'center', vertical: 'center' } },
+            weekend: { font: { bold: true, color: { rgb: 'C00000' } }, fill: { fgColor: { rgb: 'FCE4E4' } }, alignment: { horizontal: 'center' } },
+            weekendF:{ fill: { fgColor: { rgb: 'FDF3F3' } } },
+            name:    { font: { bold: true }, alignment: { horizontal: 'left' } },
+            night:   { font: { color: { rgb: 'ED7D31' } }, alignment: { horizontal: 'center' } },
+            rest:    { font: { color: { rgb: 'C00000' } }, alignment: { horizontal: 'center' } },
+            leave:   { font: { color: { rgb: '7030A0' } }, alignment: { horizontal: 'center' } },
+            day:     { alignment: { horizontal: 'center' } },
+            stat:    { font: { bold: true }, fill: { fgColor: { rgb: 'F2F2F2' } }, alignment: { horizontal: 'center' } },
+            note:    { font: { italic: true, color: { rgb: '808080' } } }
+        };
+        var lastCol = 3 + T + 12;
+        function setCell(r, c, st) {
+            var addr = XLSX.utils.encode_cell({ r: r, c: c });
+            if (!ws[addr]) ws[addr] = { t: 'z' };
+            ws[addr].s = st;
+        }
+        // 标题行 + 星期行
+        for (var c0 = 0; c0 <= lastCol; c0++) { setCell(0, c0, S.title); setCell(1, c0, S.header); }
+        // 周末列标红
+        for (var d3 = 0; d3 < T; d3++) if (isWeekend(input.dates[d3])) setCell(1, 3 + d3, S.weekend);
+        // 数据行
+        for (var pr = 2; pr < 2 + P; pr++) {
+            setCell(pr, 0, S.name); setCell(pr, 1, S.name); setCell(pr, 2, S.name);
+            for (var d4 = 0; d4 < T; d4++) {
+                var v4 = result.grid[pr - 2][d4];
+                var st4 = v4 === '小夜班3' ? S.night : (v4 === '休' ? S.rest : (v4 === '白班' ? S.day : S.leave));
+                if (isWeekend(input.dates[d4])) {
+                    st4 = JSON.parse(JSON.stringify(st4)); // 深拷贝，保留字体色
+                    st4.fill = { fgColor: { rgb: 'FDF3F3' } };
+                }
+                setCell(pr, 3 + d4, st4);
+            }
+            for (var sc = 3 + T; sc <= lastCol; sc++) setCell(pr, sc, S.stat);
+        }
+        // 备注行 + 统计区标签
+        var noteRow = 2 + P;
+        for (var nc = 0; nc <= lastCol; nc++) setCell(noteRow, nc, S.note);
+        for (var sr = sIdx; sr < sIdx + 4; sr++) setCell(sr, 2, S.stat);
+        setCell(aoa.length - 2, 2, S.stat);
+        setCell(aoa.length - 1, 2, S.stat);
+
         var wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, '排班表');
         XLSX.writeFile(wb, fileName);
@@ -1614,7 +1728,7 @@ var SCH = (function () {
         var tbl = el('table', 'sch-people');
         var thead = el('thead');
         var hr = el('tr');
-        ['参与', '姓名', '白班档位', '班次偏好', '夜班倾向', '固定白班星期', '固定夜班星期', '请假（如 24:年假,25:病假）', '必休日期（如 8,9）', '指定班次（如 10:小夜班3）'].forEach(function (t) {
+        ['参与', '姓名', '班次偏好', '夜班倾向', '固定白班星期', '固定夜班星期', '请假（如 24:年假,25:病假）', '必休日期（如 8,9）', '指定班次（如 10:小夜班3,11:白班）'].forEach(function (t) {
             var th = el('th', null, t); hr.appendChild(th);
         });
         thead.appendChild(hr); tbl.appendChild(thead);
@@ -1628,13 +1742,6 @@ var SCH = (function () {
             td0.appendChild(cb); tr.appendChild(td0);
 
             var td1 = el('td', null, p.cn); td1.style.fontWeight = '600'; tr.appendChild(td1);
-
-            var td2 = el('td'); var sel = el('select');
-            DAY_SHIFTS.forEach(function (s) {
-                var o = el('option', null, s); o.value = s; if (p.dayShift === s) o.selected = true; sel.appendChild(o);
-            });
-            sel.addEventListener('change', function () { p.dayShift = sel.value; savePeople(UI.people); });
-            td2.appendChild(sel); tr.appendChild(td2);
 
             var td3 = el('td'); var sel2 = el('select');
             [['', '不限'], ['day', '偏白班'], ['night', '偏夜班']].forEach(function (pair) {
@@ -1686,6 +1793,7 @@ var SCH = (function () {
         $('rule-maxstaff').value = r.maxStaff;
         $('rule-maxrun').value = r.maxRun;
         $('rule-target').value = r.targetDays;
+        if ($('rule-n2dh')) $('rule-n2dh').checked = !!r.nightToDayHard;
     }
 
     function currentPeriod() {
@@ -1701,16 +1809,20 @@ var SCH = (function () {
     }
 
     // 跨周期衔接：读取上一周期已生成的排班
+    // 返回 { carry, linked, gap }：linked=是否成功衔接上期，gap=与上期末的间隔天数
+    // 间隔 1 天正常衔接；间隔 2~7 天视为有空档（空档按休息处理，仍衔接尾部班段）；
+    // 无存档或间隔 >7 天则不衔接
     function loadCarry(people, dates) {
+        var none = { carry: null, linked: false, gap: -1 };
         try {
             var raw = localStorage.getItem('scheduler_last');
-            if (!raw) return null;
+            if (!raw) return none;
             var last = JSON.parse(raw);
-            if (!last || !last.grid || !last.dates) return null;
+            if (!last || !last.grid || !last.dates) return none;
             var endPrev = new Date(last.dates[last.dates.length - 1]);
             var startCur = dates[0];
             var diff = Math.round((startCur - endPrev) / 86400000);
-            if (diff !== 1) return null; // 非相邻周期，不衔接
+            if (diff < 1 || diff > 7) return none; // 非相邻/近邻周期，不衔接
             var map = {};
             last.people.forEach(function (p, i) { map[p.en] = i; });
             var carry = [];
@@ -1718,10 +1830,12 @@ var SCH = (function () {
                 var i = map[p.en];
                 if (i == null || !last.raw || !last.raw[i]) { carry.push([]); return; }
                 var tail = last.raw[i].slice(-Math.min(8, last.raw[i].length));
+                // 有空档时，把空档天按休息（0）补进衔接段，避免误判连班
+                if (diff > 1) tail = tail.concat(new Array(diff - 1).fill(0));
                 carry.push(tail);
             });
-            return carry;
-        } catch (e) { return null; }
+            return { carry: carry, linked: true, gap: diff };
+        } catch (e) { return none; }
     }
 
     function runSchedule() {
@@ -1741,7 +1855,8 @@ var SCH = (function () {
         try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { }
         setTimeout(function () {
             try {
-                var carry = loadCarry(actives, per.dates);
+                var carryInfo = loadCarry(actives, per.dates);
+                var carry = carryInfo.carry;
                 var input = buildInput(per.dates, actives, rules, carry);
                 var res = solve(input);
                 if (!res.a) {
@@ -1758,7 +1873,7 @@ var SCH = (function () {
                 UI.last = { input: input, result: result, dates: per.dates, year: per.year, month: per.month };
                 UI.lastInput = input;
                 renderResult(input, result, per.dates);
-                renderSummary(input, result, vs, carry);
+                renderSummary(input, result, vs, carryInfo);
                 // 保存结果用于下期衔接
                 try {
                     localStorage.setItem('scheduler_last', JSON.stringify({
@@ -1807,8 +1922,7 @@ var SCH = (function () {
                 var cls = 'sch-cell';
                 if (v === '小夜班3') cls += ' night';
                 else if (v === '休') cls += ' rest';
-                else if (v === '早班2') cls += ' day1';
-                else if (v === '正常班') cls += ' day2';
+                else if (v === '白班') cls += ' day1';
                 else cls += ' leave';
                 var td = el('td', cls, shortName(v));
                 td.title = keyOf(dates[d]) + ' ' + v;
@@ -1855,7 +1969,7 @@ var SCH = (function () {
         box.appendChild(wrap);
 
         var legend = el('div', 'sch-legend');
-        [['早班2', 'day1'], ['正常班', 'day2'], ['小夜班3', 'night'], ['休', 'rest'], ['假', 'leave']].forEach(function (pair) {
+        [['白班', 'day1'], ['小夜班3', 'night'], ['休', 'rest'], ['假', 'leave']].forEach(function (pair) {
             var item = el('span', 'sch-legend-item');
             var dot = el('i', 'sch-dot ' + pair[1]);
             item.appendChild(dot); item.appendChild(el('span', null, pair[0]));
@@ -1865,14 +1979,13 @@ var SCH = (function () {
     }
 
     function shortName(v) {
-        if (v === '早班2') return '早2';
-        if (v === '正常班') return '正常';
+        if (v === '白班') return '白';
         if (v === '小夜班3') return '小夜';
         if (v === '休') return '休';
         return v;
     }
 
-    function renderSummary(input, result, violations, carry) {
+    function renderSummary(input, result, violations, carryInfo) {
         var box = $('summary-box');
         box.classList.add('active');
         box.innerHTML = '';
@@ -1890,7 +2003,13 @@ var SCH = (function () {
                 '、同时上班≤' + input.rules.maxStaff + '、每人出勤' + input.rules.targetDays + '天、连班≤' + input.rules.maxRun +
                 '、小夜后不上白班、休息均为连续两天（双休）'));
         }
-        if (carry) box.appendChild(el('div', 'sch-tip', '已衔接上一周期末尾班段（连班计数与小夜限制跨周期生效）'));
+        if (carryInfo && carryInfo.linked) {
+            box.appendChild(el('div', 'sch-tip', carryInfo.gap === 1
+                ? '已衔接上一周期末尾班段（连班计数与小夜限制跨周期生效）'
+                : '已衔接上一周期末尾班段（中间空档 ' + (carryInfo.gap - 1) + ' 天按休息处理）'));
+        } else {
+            box.appendChild(el('div', 'sch-tip', '⚠ 未找到相邻的上期排班存档，本期未做跨周期衔接（连班计数与小夜限制仅在本周期内生效）'));
+        }
         if (input.nightTarget) {
             var nb = [];
             result.personStats.forEach(function (s, i) {
@@ -1983,6 +2102,13 @@ var SCH = (function () {
                 if (!isNaN(v) && v > 0) { UI.rules[pair[1]] = v; saveRules(UI.rules); }
             });
         });
+        var cbN2D = $('rule-n2dh');
+        if (cbN2D) {
+            cbN2D.addEventListener('change', function () {
+                UI.rules.nightToDayHard = cbN2D.checked; saveRules(UI.rules);
+                notify(cbN2D.checked ? '已把小夜约束设为硬约束（可能击穿白班下限）' : '已把小夜约束设为软约束（优先保证人数与双休）');
+            });
+        }
         $('btn-run').addEventListener('click', runSchedule);
         $('btn-again').addEventListener('click', runSchedule); // 换一组随机起点重排，挑违规最少的
         $('btn-export').addEventListener('click', doExport);

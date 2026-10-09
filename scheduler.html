@@ -133,9 +133,10 @@
       <span class="sch-field">最多同时上班 <input type="number" id="rule-maxstaff" min="2" max="8"></span>
       <span class="sch-field">最长连班 <input type="number" id="rule-maxrun" min="3" max="10"></span>
       <span class="sch-field">每人上班天数 <input type="number" id="rule-target" min="1" max="31"></span>
+      <label class="sch-field" style="cursor:pointer"><input type="checkbox" id="rule-n2dh" style="width:auto"> 小夜后次日不上白班（硬约束）</label>
       <button type="button" class="board-eraser" id="btn-reset">恢复默认规则</button>
     </div>
-    <div class="hint-text" style="margin-top:10px">周期口径：上月 21 日 ~ 本月 20 日　·　规则：白班 = 早班2 / 正常班，夜班 = 小夜班3；小夜之后次日不上白班；
+    <div class="hint-text" style="margin-top:10px">周期口径：上月 21 日 ~ 本月 20 日　·　规则：白班 / 夜班（小夜班3）；小夜之后次日不上白班；
       <b>每天最多 5 人在班，休息保证连续两天（双休），目标形态为上五休二</b></div>
   </div>
 
@@ -151,7 +152,7 @@
     </div>
     <div class="hint-text">
       日期写法：<b>24</b>（号数）、<b>10-24</b>、<b>2026-10-24</b>，多项用逗号分隔　·　
-      请假示例：<b>24:年假,25:病假</b>　·　必休示例：<b>8,9</b>　·　指定班次示例：<b>10:小夜班3,11:早班2</b><br>
+      请假示例：<b>24:年假,25:病假</b>　·　必休示例：<b>8,9</b>　·　指定班次示例：<b>10:小夜班3,11:白班</b><br>
       <b>固定白班 / 夜班星期</b>：1=周一 … 7=周日，只对上班日生效（休息日不受影响）。
       例：林国宇、厉津睿填 白班 <b>4,5</b> ＋ 夜班 <b>1,2,3,6,7</b> = 周四周五白班、其余上班日全夜班
     </div>
