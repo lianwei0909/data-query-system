@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能排班</title>
+<link rel="icon" href="data:,">
+</head>
+<body>
+<!-- 样式必须写在 body 内：主框架注入子页面时只取 <body> 内容 -->
+<style>
+:root{
+  --bg:#0f1117;--sidebar-bg:#13161f;--card-bg:#1a1d27;--card-bg2:#1e2130;
+  --border:rgba(255,255,255,.07);--border-light:rgba(255,255,255,.04);
+  --accent:#4f8ef7;--accent-glow:rgba(79,142,247,.2);
+  --green:#2dd4a0;--green-bg:rgba(45,212,160,.12);
+  --red:#f75f5f;--red-bg:rgba(247,95,95,.12);
+  --orange:#f7a24f;--orange-bg:rgba(247,162,79,.12);
+  --purple:#a07ff7;--purple-bg:rgba(160,127,247,.12);
+  --gold:#f7c84f;--gold-bg:rgba(247,200,79,.12);
+  --text-primary:#e8eaf0;--text-secondary:#8b8fa8;--text-muted:#5a5e72;
+  --radius:12px;--radius-sm:8px;
+}
+/* ── 周期 / 规则 ── */
+.sch-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:14px}
+.sch-row label{font-size:14px;color:var(--text-secondary)}
+/* 输入框 / 下拉框：黑底白字 */
+.sch-row select,.sch-rules input{
+  background:#000;color:#fff;border:1px solid rgba(255,255,255,.28);
+  border-radius:8px;padding:6px 10px;font-size:13px;font-family:inherit;outline:none
+}
+.sch-row select option,.sch-people select option{background:#000;color:#fff}
+.sch-row select:focus,.sch-rules input:focus{border-color:var(--accent)}
+.sch-row .board-eraser{background:#000;color:#fff;border:1px solid rgba(255,255,255,.28)}
+.sch-row .board-eraser:hover{color:#fff;border-color:var(--accent)}
+.sch-period-label{font-size:13px;color:var(--accent);font-weight:600}
+.sch-rules{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--text-secondary)}
+.sch-rules .sch-field{display:inline-flex;align-items:center;gap:6px}
+.sch-rules input{width:58px;text-align:center}
+
+/* ── 人员需求表 ── */
+.sch-people-wrap{overflow-x:auto}
+.sch-people{width:100%;border-collapse:collapse;font-size:13px}
+.sch-people th{
+  background:rgba(102,126,234,.08);padding:10px 12px;text-align:center;font-weight:600;
+  color:var(--text-secondary);border-bottom:1px solid var(--border);white-space:nowrap;font-size:12.5px
+}
+.sch-people td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);text-align:center;font-size:13px}
+.sch-people tr:hover td{background:rgba(255,255,255,.02)}
+.sch-people input[type=text],.sch-people input[type=number]{
+  background:#000;color:#fff;border:1px solid rgba(255,255,255,.28);
+  border-radius:6px;padding:5px 8px;font-size:12.5px;font-family:inherit;outline:none;width:100%;min-width:150px
+}
+.sch-people input[type=number]{min-width:72px}
+.sch-people input[type=text]::placeholder{color:rgba(255,255,255,.38)}
+.sch-people input[type=text]:focus,.sch-people input[type=number]:focus{border-color:var(--accent)}
+.sch-people select{
+  background:#000;color:#fff;border:1px solid rgba(255,255,255,.28);
+  border-radius:6px;padding:5px 8px;font-size:12.5px;font-family:inherit;outline:none
+}
+
+/* ── 结果表 ── */
+.sch-table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+.sch-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+.sch-table th{
+  background:rgba(102,126,234,.08);padding:6px 3px;text-align:center;font-weight:600;
+  color:var(--text-secondary);border-bottom:1px solid var(--border);min-width:34px;font-size:11.5px
+}
+.sch-table th.sch-we{color:rgba(247,95,95,.85)}
+.sch-name-col{
+  position:sticky;left:0;z-index:3;background:var(--card-bg);min-width:60px;white-space:nowrap;
+  text-align:left;padding-left:10px;font-weight:600;color:var(--text-primary);
+  border-right:1px solid var(--border)
+}
+.sch-sum-col{position:sticky;background:var(--card-bg);font-weight:600;color:var(--text-secondary);min-width:44px}
+.sch-cell{padding:5px 3px;text-align:center;border-bottom:1px solid rgba(255,255,255,.04);min-width:34px;font-size:12px}
+.sch-cell.day1{color:#4f8ef7;background:rgba(79,142,247,.14)}
+.sch-cell.day2{color:#7dd3fc;background:rgba(125,211,252,.10)}
+.sch-cell.night{color:#f7a24f;background:rgba(247,162,79,.15)}
+.sch-cell.rest{color:#f75f5f;background:rgba(247,95,95,.09)}
+.sch-cell.leave{color:#a07ff7;background:rgba(160,127,247,.14)}
+.sch-cell.duty{font-size:11px;color:var(--text-secondary);background:transparent;padding:3px 2px}
+.sch-cell.stat{font-weight:700;color:var(--text-secondary);background:rgba(255,255,255,.03)}
+.sch-cell.bad{background:rgba(247,95,95,.28)!important;color:#fff}
+.sch-stat-row td,.sch-duty-row td{border-top:1px solid var(--border)}
+.sch-sum-col.bad{color:#fca5a5}
+.sch-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--text-secondary)}
+.sch-legend-item{display:flex;align-items:center;gap:5px}
+.sch-dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sch-dot.day1{background:rgba(79,142,247,.55)}
+.sch-dot.day2{background:rgba(125,211,252,.45)}
+.sch-dot.night{background:rgba(247,162,79,.55)}
+.sch-dot.rest{background:rgba(247,95,95,.45)}
+.sch-dot.leave{background:rgba(160,127,247,.55)}
+
+/* ── 校验 / 汇总 ── */
+.sch-sum-title{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:10px}
+.sch-ok{font-size:13px;color:#6ee7b7;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35);border-radius:8px;padding:10px 14px;margin-bottom:12px}
+.sch-violations{background:rgba(247,95,95,.10);border:1px solid rgba(247,95,95,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;max-height:200px;overflow-y:auto}
+.sch-violation{font-size:12.5px;color:#fca5a5;padding:2px 0}
+.sch-tip{font-size:12px;color:var(--text-muted);margin-bottom:10px}
+.sch-notes{background:rgba(247,200,79,.10);border:1px solid rgba(247,200,79,.3);border-radius:8px;padding:8px 14px;margin-bottom:12px}
+.sch-note{font-size:12.5px;color:#f7c84f;padding:2px 0}
+.sch-empty{text-align:center;padding:40px;color:var(--text-muted);font-size:14px}
+.sch-mini{width:auto;min-width:420px;margin:0 auto}
+.sch-mini th{padding:8px 14px}
+.sch-mini td{padding:7px 14px}
+/* 通知条：类名避开主框架的 .notification（右侧滑入式），否则样式会被覆盖错位 */
+.sch-notify{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-120%);padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:10000;transition:transform .3s cubic-bezier(.16,1,.3,1);max-width:90vw;white-space:pre-wrap}
+.sch-notify.show{transform:translateX(-50%) translateY(0)}
+.sch-notify.success{background:rgba(45,212,160,.18);border:1px solid rgba(45,212,160,.5);color:#6ee7b7}
+.sch-notify.error{background:rgba(247,95,95,.18);border:1px solid rgba(247,95,95,.5);color:#fca5a5}
+</style>
+
+<div class="container">
+
+  <div class="page-intro">
+    <h2>智能排班</h2>
+    <p>填写每个人的请假 / 必休 / 指定班次，自动生成满足最低保障与人数上限的合规班表</p>
+  </div>
+
+  <!-- 周期与规则 -->
+  <div class="upload-section">
+    <div class="sch-row">
+      <label>排班周期</label>
+      <select id="period-year"></select>
+      <select id="period-month"></select>
+      <span class="sch-period-label" id="period-label"></span>
+    </div>
+    <div class="sch-rules">
+      <span class="sch-field">最低白班 <input type="number" id="rule-minday" min="1" max="5"></span>
+      <span class="sch-field">最低夜班 <input type="number" id="rule-minnight" min="1" max="5"></span>
+      <span class="sch-field">最多同时上班 <input type="number" id="rule-maxstaff" min="2" max="8"></span>
+      <span class="sch-field">最长连班 <input type="number" id="rule-maxrun" min="3" max="10"></span>
+      <span class="sch-field">每人上班天数 <input type="number" id="rule-target" min="1" max="31"></span>
+      <button type="button" class="board-eraser" id="btn-reset">恢复默认规则</button>
+    </div>
+    <div class="hint-text" style="margin-top:10px">周期口径：上月 21 日 ~ 本月 20 日　·　规则：白班 = 早班2 / 正常班，夜班 = 小夜班3；小夜之后次日不上白班；
+      <b>每天最多 5 人在班，休息保证连续两天（双休），目标形态为上五休二</b></div>
+  </div>
+
+  <!-- 人员需求 -->
+  <div class="preview-section active">
+    <div class="section-title">人员需求</div>
+    <div id="people-box" class="sch-people-wrap"></div>
+    <div class="action-bar">
+      <button type="button" class="btn-import" id="btn-run">⚡ 生成排班</button>
+      <button type="button" class="btn btn-secondary" id="btn-again">🔄 换个排法</button>
+      <button type="button" class="btn btn-secondary" id="btn-export">📥 导出 Excel</button>
+      <button type="button" class="btn btn-secondary" id="btn-restore">恢复默认人员</button>
+    </div>
+    <div class="hint-text">
+      日期写法：<b>24</b>（号数）、<b>10-24</b>、<b>2026-10-24</b>，多项用逗号分隔　·　
+      请假示例：<b>24:年假,25:病假</b>　·　必休示例：<b>8,9</b>　·　指定班次示例：<b>10:小夜班3,11:早班2</b><br>
+      <b>固定白班 / 夜班星期</b>：1=周一 … 7=周日，只对上班日生效（休息日不受影响）。
+      例：林国宇、厉津睿填 白班 <b>4,5</b> ＋ 夜班 <b>1,2,3,6,7</b> = 周四周五白班、其余上班日全夜班
+    </div>
+  </div>
+
+  <!-- 结果 -->
+  <div id="result-box" class="preview-section"></div>
+  <div id="summary-box" class="preview-section"></div>
+
+  <div id="sch-notification" class="sch-notify"></div>
+</div>
+
+<script>
+// 子页面由 index.html 动态注入，外链脚本不会被执行，这里手动加载 solver
+(function () {
+    var host = document.getElementById('page-sub') || document.body;
+    var s = document.createElement('script');
+    s.src = 'scheduler.js?v=' + Date.now();
+    s.setAttribute('data-sub-injected', '1');
+    host.appendChild(s);
+})();
+</script>
+</body>
+</html>
