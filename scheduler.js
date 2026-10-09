@@ -40,10 +40,9 @@ var SCH = (function () {
         { en: 'zaklin', cn: '林国宇', org: 'zaklin(林国宇)', prefer: 'night', active: true, nightBias: 0.77, need: '周四周五白班，其余夜班' }
     ];
 
-    // nightToDayHard：小夜后次日不上白班是否作为硬约束。
-    // 默认 false（重罚软约束）—— 7 人规模下它与「每天≥2 人夜班」互斥，
-    // 硬卡死会让整个班表无解，只能靠击穿白班人数下限来满足。
-    var DEFAULT_RULES = { minDay: 2, minNight: 2, maxStaff: 5, maxRun: 6, targetDays: 21, nightToDayHard: false };
+    // 「小夜后次日不上白班」「每天白班≥2、夜班≥2」都是硬性要求（nightToDayHard = true）。
+    // 这两条同时硬性时约束很紧，求解器会优先保它们；万一排不开，校验报告会明确列出未满足项。
+    var DEFAULT_RULES = { minDay: 2, minNight: 2, maxStaff: 5, maxRun: 6, targetDays: 21, nightToDayHard: true, v: 2 };
 
     // ═══════════ 日期工具 ═══════════
     // month = 周期结束月份（1-12），周期 = 上月21号 ~ 本月20号
@@ -1396,7 +1395,7 @@ var SCH = (function () {
 
         // 阶段 A1：大量「构造 + 定向修复」（很快），先攒够满足全部硬约束的可行解
         var feasibles = [], pool = [];
-        for (var a = 0; a < 120 && feasibles.length < 5; a++) {
+        for (var a = 0; a < 260 && feasibles.length < 5; a++) {
             var st0 = new State(input, makeRand(1000 + a * 7919 + Math.floor(Math.random() * 100000)));
             st0.construct();
             // 白/夜无解的骨架直接换一个；但至少留一个兜底，避免一个候选都没有
@@ -1411,9 +1410,9 @@ var SCH = (function () {
 
         // 阶段 A2：还不够就挑几个最接近的做迭代局部搜索
         pool.sort(function (x, y) { return (x.cost.hard - y.cost.hard) || (x.cost.soft - y.cost.soft); });
-        for (var b = 0; b < Math.min(10, pool.length) && feasibles.length < 5; b++) {
+        for (var b = 0; b < Math.min(20, pool.length) && feasibles.length < 5; b++) {
             var st = pool[b].st, cc = pool[b].cost;
-            for (var att = 0; att < 120 && cc.hard > 0; att++) {
+            for (var att = 0; att < 300 && cc.hard > 0; att++) {
                 var trial = new State(input, makeRand(Math.floor(Math.random() * 1e9)));
                 trial.a = st.a.map(function (row) { return row.slice(); });
                 trial.refresh();
@@ -1821,7 +1820,17 @@ var SCH = (function () {
     function loadRules() {
         try {
             var raw = localStorage.getItem('scheduler_rules');
-            if (raw) return JSON.parse(raw);
+            if (raw) {
+                var r = JSON.parse(raw);
+                // 旧存档默认是「小夜=软约束」，升级为硬性要求
+                if (!r || r.v === undefined || r.v < 2) {
+                    r = r || {};
+                    r.nightToDayHard = true;
+                    r.v = 2;
+                    saveRules(r);
+                }
+                return r;
+            }
         } catch (e) { }
         return JSON.parse(JSON.stringify(DEFAULT_RULES));
     }
