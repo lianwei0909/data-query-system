@@ -36,8 +36,8 @@ var SCH = (function () {
         { en: 'nomadshi', cn: '石浩东', org: 'nomadshi (石浩东)', prefer: '', active: true, nightBias: 0.43 },
         { en: 'anweili', cn: '李安维', org: 'anweili(李安维)', prefer: '', active: true, nightBias: 0.50 },
         { en: 'hanleywang', cn: '王汉明', org: 'hanleywang(王汉明)', prefer: 'night', active: true, nightBias: 0.77 },
-        { en: 'ventili', cn: '厉津睿', org: 'ventili(厉津睿)', prefer: 'night', active: true, nightBias: 0.62, weekDay: '4,5', weekNight: '1,2,3,6,7' },
-        { en: 'zaklin', cn: '林国宇', org: 'zaklin(林国宇)', prefer: 'night', active: true, nightBias: 0.77, weekDay: '4,5', weekNight: '1,2,3,6,7' }
+        { en: 'ventili', cn: '厉津睿', org: 'ventili(厉津睿)', prefer: 'night', active: true, nightBias: 0.62, need: '周四周五白班，其余夜班' },
+        { en: 'zaklin', cn: '林国宇', org: 'zaklin(林国宇)', prefer: 'night', active: true, nightBias: 0.77, need: '周四周五白班，其余夜班' }
     ];
 
     // nightToDayHard：小夜后次日不上白班是否作为硬约束。
@@ -93,6 +93,106 @@ var SCH = (function () {
         }
         return -1;
     }
+    // ═══════════ 需求文字解析 ═══════════
+    // 每人一段自然语言需求，例：
+    //   「24号年假，8、9号休，15号白班，周四周五白班，其余夜班，尽量少上夜班」
+    var LEAVE_WORDS = ['年假', '病假', '事假', '产检假', '产假', '婚假', '丧假', '调休假', '育儿假', '陪产假'];
+    var WD_MAP = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7 };
+
+    function dedup(arr) {
+        var seen = {}, out = [];
+        for (var i = 0; i < arr.length; i++) { if (!seen[arr[i]]) { seen[arr[i]] = 1; out.push(arr[i]); } }
+        return out;
+    }
+
+    // 从一句话里抽出日期：支持 24 / 24号 / 8、9号 / 8-9号（区间展开）/ 10-24 / 2026-10-24
+    function extractDays(seg) {
+        var out = [], m, i;
+        var re0 = /(\d{4})\s*[-\/年]\s*(\d{1,2})\s*[-\/月]\s*(\d{1,2})/g;
+        while ((m = re0.exec(seg))) out.push(m[1] + '-' + (+m[2]) + '-' + (+m[3]));
+        var rest = seg.replace(re0, ' ');
+        var re1 = /(\d{1,2})\s*[-~至到]\s*(\d{1,2})/g;
+        while ((m = re1.exec(rest))) {
+            var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+            if (a <= 12 && b > 12) out.push(a + '-' + b);                       // 10-24 → 10月24日
+            else if (a <= b) { for (i = a; i <= b; i++) out.push(String(i)); }   // 8-9 → 8号、9号
+            else { for (i = a; i >= b; i--) out.push(String(i)); }
+        }
+        rest = rest.replace(re1, ' ');
+        var re2 = /(\d{1,2})\s*[号日]?/g;
+        while ((m = re2.exec(rest))) out.push(String(parseInt(m[1], 10)));
+        return dedup(out);
+    }
+
+    function parseNeedText(text) {
+        var r = { leave: [], off: [], fix: [], weekDay: [], weekNight: [], prefer: '', nightAll: false };
+        if (!text) return r;
+        var segs = String(text).split(/[,，。;；\n\r]+/);   // 顿号留给「8、9号休」这种并列日期
+        for (var i = 0; i < segs.length; i++) {
+            var seg = segs[i].trim();
+            if (!seg) continue;
+
+            // ① 星期 + 班次：「周四周五白班」「每周六、日 夜班」
+            if (/(周|星期)/.test(seg) && /(白|夜)/.test(seg)) {
+                var wds = [], m;
+                var re = /(?:周|星期)?([一二三四五六日1-7])/g;
+                while ((m = re.exec(seg))) { var w = WD_MAP[m[1]]; if (w) wds.push(w); }
+                if (wds.length) {
+                    if (/夜/.test(seg)) r.weekNight = dedup(r.weekNight.concat(wds));
+                    else r.weekDay = dedup(r.weekDay.concat(wds));
+                }
+                continue;
+            }
+            // ② 「其余夜班 / 其余白班」
+            if (/(其余|其他|其它|剩下|别的)/.test(seg) && /(白|夜)/.test(seg)) {
+                if (/白/.test(seg)) r.dayAll = true; else r.nightAll = true;
+                continue;
+            }
+            // ③ 偏好：「尽量少上夜班」「想上白班」
+            if (/(想|希望|尽量|倾向|偏好|最好|优先|少上|多上|不想|避免)/.test(seg) && /(白|夜)/.test(seg)) {
+                var neg = /少上|不想|避免|尽量不/.test(seg);
+                var wantNight = /夜/.test(seg);
+                if (neg) r.prefer = wantNight ? 'day' : 'night';       // 「少上夜班」= 偏白班
+                else r.prefer = wantNight ? 'night' : (/白/.test(seg) ? 'day' : '');
+                continue;
+            }
+            // ④ 日期 + 事项
+            var type = '';
+            for (var k = 0; k < LEAVE_WORDS.length; k++) { if (seg.indexOf(LEAVE_WORDS[k]) >= 0) { type = LEAVE_WORDS[k]; break; } }
+            if (!type && /请假/.test(seg)) type = '事假';
+            // 班次名里的数字（小夜班3 / 早班2）别当成日期
+            var days = extractDays(seg.replace(/小夜班\s*3/g, '夜班').replace(/早班\s*2/g, '早班'));
+            if (!days.length) continue;
+            if (type) { days.forEach(function (d) { r.leave.push(d + ':' + type); }); continue; }
+            if (/休息|休/.test(seg)) { r.off = dedup(r.off.concat(days)); continue; }
+            if (/夜班|小夜|夜/.test(seg)) { days.forEach(function (d) { r.fix.push(d + ':小夜班3'); }); continue; }
+            if (/白班|早班|白/.test(seg)) { days.forEach(function (d) { r.fix.push(d + ':白班'); }); continue; }
+        }
+        // 「其余夜班 / 其余白班」＝ 除已指定星期以外的所有星期
+        if (r.nightAll && !r.weekNight.length) {
+            for (var w2 = 1; w2 <= 7; w2++) if (r.weekDay.indexOf(w2) < 0) r.weekNight.push(w2);
+        }
+        if (r.dayAll && !r.weekDay.length) {
+            for (var w3 = 1; w3 <= 7; w3++) if (r.weekNight.indexOf(w3) < 0) r.weekDay.push(w3);
+        }
+        r.leave = dedup(r.leave); r.fix = dedup(r.fix);
+        return r;
+    }
+
+    function cnWeek(n) { return ['', '一', '二', '三', '四', '五', '六', '日'][parseInt(n, 10)] || ''; }
+
+    // 把解析结果翻译成人话，给用户输入时即时确认
+    function describeNeed(n) {
+        var parts = [];
+        if (n.leave.length) parts.push('假 ' + n.leave.join('、'));
+        if (n.off.length) parts.push('休 ' + n.off.join('、') + '号');
+        if (n.fix.length) parts.push('指定 ' + n.fix.join('、'));
+        if (n.weekDay.length) parts.push('周' + n.weekDay.map(cnWeek).join('') + '白班');
+        if (n.weekNight.length) parts.push('周' + n.weekNight.map(cnWeek).join('') + '夜班');
+        if (n.prefer) parts.push(n.prefer === 'day' ? '偏白班' : '偏夜班');
+        return parts.join(' · ');
+    }
+
     // 星期集合：用户输入 1=周一 … 7=周日，转成 JS getDay()（0=周日）
     function parseWeekdays(str) {
         var set = {};
@@ -1695,12 +1795,19 @@ var SCH = (function () {
             var raw = localStorage.getItem('scheduler_people');
             if (raw) {
                 var list = JSON.parse(raw);
-                // 老存档没有「按星期固定班次」字段，用默认值补齐
                 DEFAULT_PEOPLE.forEach(function (d) {
                     for (var i = 0; i < list.length; i++) {
                         if (list[i].en !== d.en) continue;
-                        if (list[i].weekDay === undefined) list[i].weekDay = d.weekDay || '';
-                        if (list[i].weekNight === undefined) list[i].weekNight = d.weekNight || '';
+                        // 老存档只有结构化的 weekDay/weekNight，迁移成需求文字
+                        if (list[i].need === undefined) {
+                            var wd = list[i].weekDay || d.weekDay || '';
+                            var wn = list[i].weekNight || d.weekNight || '';
+                            var txt = [];
+                            if (wd) txt.push('周' + wd.split(',').map(cnWeek).join('') + '白班');
+                            if (wn) txt.push('周' + wn.split(',').map(cnWeek).join('') + '夜班');
+                            list[i].need = txt.join('，') || (d.need || '');
+                        }
+                        if (typeof list[i].nightBias !== 'number' && typeof d.nightBias === 'number') list[i].nightBias = d.nightBias;
                     }
                 });
                 return list;
@@ -1728,7 +1835,7 @@ var SCH = (function () {
         var tbl = el('table', 'sch-people');
         var thead = el('thead');
         var hr = el('tr');
-        ['参与', '姓名', '班次偏好', '夜班倾向', '固定白班星期', '固定夜班星期', '请假（如 24:年假,25:病假）', '必休日期（如 8,9）', '指定班次（如 10:小夜班3,11:白班）'].forEach(function (t) {
+        ['参与', '姓名', '需求（一句话写清楚就行）', '识别结果'].forEach(function (t) {
             var th = el('th', null, t); hr.appendChild(th);
         });
         thead.appendChild(hr); tbl.appendChild(thead);
@@ -1743,43 +1850,20 @@ var SCH = (function () {
 
             var td1 = el('td', null, p.cn); td1.style.fontWeight = '600'; tr.appendChild(td1);
 
-            var td3 = el('td'); var sel2 = el('select');
-            [['', '不限'], ['day', '偏白班'], ['night', '偏夜班']].forEach(function (pair) {
-                var o = el('option', null, pair[1]); o.value = pair[0]; if (p.prefer === pair[0]) o.selected = true; sel2.appendChild(o);
-            });
-            sel2.addEventListener('change', function () { p.prefer = sel2.value; savePeople(UI.people); });
-            td3.appendChild(sel2); tr.appendChild(td3);
-
-            // 夜班倾向（0~1）：越大越倾向排夜班，默认取自往期排班统计
-            var tdB = el('td'); var inpB = el('input');
-            inpB.type = 'number'; inpB.step = '0.05'; inpB.min = '0'; inpB.max = '1';
-            inpB.value = (typeof p.nightBias === 'number' ? p.nightBias : 0.5);
-            inpB.style.cssText = 'width:72px;text-align:center';
-            inpB.title = '夜班占其出勤的比例，默认来自往期排班统计';
-            inpB.addEventListener('change', function () {
-                var v = parseFloat(inpB.value);
-                if (!isNaN(v)) { p.nightBias = Math.min(1, Math.max(0, v)); savePeople(UI.people); }
-            });
-            tdB.appendChild(inpB); tr.appendChild(tdB);
-
-            // 固定星期班次：1=周一 … 7=周日
-            [['weekDay', '4,5'], ['weekNight', '1,2,3,6,7']].forEach(function (cfg) {
-                var td = el('td'); var inp = el('input');
-                inp.type = 'text'; inp.value = p[cfg[0]] || '';
-                inp.placeholder = cfg[1];
-                inp.style.cssText = 'width:100%;min-width:96px;text-align:center';
-                inp.addEventListener('input', function () { p[cfg[0]] = inp.value; savePeople(UI.people); });
-                td.appendChild(inp); tr.appendChild(td);
-            });
-
-            [['leave', 'td4'], ['off', 'td5'], ['fix', 'td6']].forEach(function (cfg) {
-                var td = el('td'); var inp = el('input');
-                inp.type = 'text'; inp.value = p[cfg[0]] || '';
-                inp.placeholder = cfg[0] === 'leave' ? '24:年假' : (cfg[0] === 'off' ? '8,9' : '10:小夜班3');
-                inp.style.cssText = 'width:100%;min-width:150px';
-                inp.addEventListener('input', function () { p[cfg[0]] = inp.value; savePeople(UI.people); });
-                td.appendChild(inp); tr.appendChild(td);
-            });
+            // 需求：一段话写清楚，输入时即时显示识别结果
+            var td2 = el('td'); var inp = el('input');
+            inp.type = 'text'; inp.value = p.need || '';
+            inp.placeholder = '如：24号年假，8、9号休，15号白班，周四周五白班，其余夜班';
+            inp.style.cssText = 'width:100%;min-width:320px';
+            var td3 = el('td', 'sch-need-preview');
+            function refresh() {
+                var n = parseNeedText(inp.value);
+                td3.textContent = describeNeed(n) || '—';
+                td3.title = td3.textContent;
+            }
+            inp.addEventListener('input', function () { p.need = inp.value; savePeople(UI.people); refresh(); });
+            td2.appendChild(inp); tr.appendChild(td2);
+            refresh(); tr.appendChild(td3);
             tbody.appendChild(tr);
         });
         tbl.appendChild(tbody);
@@ -1855,6 +1939,16 @@ var SCH = (function () {
         try { box.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { }
         setTimeout(function () {
             try {
+                // 把每人的需求文字翻译成排班约束
+                actives.forEach(function (p) {
+                    var n = parseNeedText(p.need);
+                    p.leave = n.leave.join(',');
+                    p.off = n.off.join(',');
+                    p.fix = n.fix.join(',');
+                    p.weekDay = n.weekDay.join(',');
+                    p.weekNight = n.weekNight.join(',');
+                    if (n.prefer) p.prefer = n.prefer;
+                });
                 var carryInfo = loadCarry(actives, per.dates);
                 var carry = carryInfo.carry;
                 var input = buildInput(per.dates, actives, rules, carry);
@@ -2134,6 +2228,8 @@ var SCH = (function () {
         buildResult: buildResult,
         validate: validate,
         exportXlsx: exportXlsx,
+        parseNeedText: parseNeedText,
+        describeNeed: describeNeed,
         init: init
     };
 })();
