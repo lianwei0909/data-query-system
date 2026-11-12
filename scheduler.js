@@ -317,7 +317,29 @@ var SCH = (function () {
         var out = { global: null, byName: {}, dayRules: [], invalid: [], notes: [] };
         if (!text || !String(text).trim()) return out;
         var names = (people || []).map(function (p) { return { cn: p.cn, en: p.en }; });
-        var clauses = String(text).split(/[\n\r；;。]+/).map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+        // 先按换行 / 分号 / 句号切；再按逗号切，但只在逗号后紧跟「人名 / 全员」时才切，
+        // 这样「林国宇：夜班平均分配，厉津睿多夜班」能拆成两条，而「12月1日-2日年假，5号白班」仍是一条
+        var startsWithPerson = function (s) {
+            if (/^\s*(全员|所有人|全体|大家|每个人|每人)/.test(s)) return true;
+            for (var i = 0; i < names.length; i++) {
+                if (new RegExp('^\\s*' + escapeRe(names[i].cn)).test(s)) return true;
+                if (new RegExp('^\\s*' + escapeRe(names[i].en), 'i').test(s)) return true;
+            }
+            return false;
+        };
+        var clauses = [];
+        String(text).split(/[\n\r；;。]+/).forEach(function (seg) {
+            seg = seg.trim();
+            if (!seg) return;
+            var parts = seg.split(/[，,]/), cur = parts[0];
+            for (var i = 1; i < parts.length; i++) {
+                var p = parts[i].trim();
+                if (startsWithPerson(p)) { clauses.push(cur.trim()); cur = p; }
+                else cur += '，' + p;
+            }
+            clauses.push(cur.trim());
+        });
+        clauses = clauses.filter(function (s) { return s; });
         clauses.forEach(function (cl) {
             // ① 每日人数规则
             var dr = parseDayRule(cl, dates);
@@ -409,6 +431,15 @@ var SCH = (function () {
             if (cntN) {
                 if (cntN.kind === 'work' && cntN.op === 'eq' && !cntN.soft) r.target = cntN.n;
                 else r.counts.push(cntN);
+                continue;
+            }
+            // ③' 简写偏好：「多夜班」「少夜班」「多白班」「少白班」「夜班多一点」「白班少一点」
+            var mShort = segN.match(/^(多|少|多上|少上|多排|少排)\s*(夜|白)班/) ||
+                segN.match(/(夜|白)班\s*(多|少)(一点|一些|点|些)?/);
+            if (mShort) {
+                var more = /^(多|多上|多排)/.test(mShort[1]) || mShort[2] === '多';
+                var isNight = (mShort[2] === '夜' || mShort[1] === '夜');
+                r.prefer = (more === isNight) ? 'night' : 'day';
                 continue;
             }
             // ③ 偏好：「尽量少上夜班」「想上白班」
