@@ -317,53 +317,84 @@ var SCH = (function () {
         var out = { global: null, byName: {}, dayRules: [], invalid: [], notes: [] };
         if (!text || !String(text).trim()) return out;
         var names = (people || []).map(function (p) { return { cn: p.cn, en: p.en }; });
-        // 先按换行 / 分号 / 句号切；再按逗号切，但只在逗号后紧跟「人名 / 全员」时才切，
-        // 这样「林国宇：夜班平均分配，厉津睿多夜班」能拆成两条，而「12月1日-2日年假，5号白班」仍是一条
-        var startsWithPerson = function (s) {
-            if (/^\s*(全员|所有人|全体|大家|每个人|每人)/.test(s)) return true;
-            for (var i = 0; i < names.length; i++) {
-                if (new RegExp('^\\s*' + escapeRe(names[i].cn)).test(s)) return true;
-                if (new RegExp('^\\s*' + escapeRe(names[i].en), 'i').test(s)) return true;
-            }
-            return false;
+        var ALL_RE = /^\s*(全员|所有人|全体|大家|每个人|每人)\s*[:：,，]?\s*/;
+        // 人名匹配：中文名 / 英文名（英文忽略大小写）
+        var nameRe = function (n) {
+            return new RegExp('^\\s*' + escapeRe(n.cn) + '\\s*[:：,，的]?\\s*|^\\s*' + escapeRe(n.en) + '\\s*[:：,，的]?\\s*', 'i');
         };
-        var clauses = [];
+        // 从一段文字开头连续取出人名（支持「吴超和石浩东」「吴超、石浩东」）
+        var takeNames = function (s) {
+            var got = [], changed = true;
+            while (changed) {
+                changed = false;
+                for (var i = 0; i < names.length; i++) {
+                    var re = nameRe(names[i]);
+                    if (re.test(s)) { got.push(names[i].cn); s = s.replace(re, ''); changed = true; break; }
+                }
+            }
+            return { names: got, body: s };
+        };
+        // 切分规则：
+        //   ① 换行 / 分号 / 句号：无条件切
+        //   ② 逗号：只有后面紧跟「人名 / 全员」才切（否则「吴超：12月1日-2日年假，12月5日白班」会被拆散）
+        //   ③ 和 / 以及 / 还有 / 、/ 跟 / 与：只有后面紧跟人名才切（「林国宇：夜班平均分配和厉津睿多夜班」）
+        var nameAlt = names.map(function (n) { return escapeRe(n.cn); })
+            .concat(names.map(function (n) { return escapeRe(n.en); })).join('|');
+        var startsWithPerson = function (s) {
+            if (ALL_RE.test(s)) return true;
+            if (!nameAlt) return false;
+            return new RegExp('^\\s*(?:' + nameAlt + ')', 'i').test(s);
+        };
+        var conjRe = nameAlt ? new RegExp('(?:和|以及|还有|、|跟|与)\\s*(?=(?:' + nameAlt + '))', 'g') : null;
+        var pieces = [];
         String(text).split(/[\n\r；;。]+/).forEach(function (seg) {
             seg = seg.trim();
             if (!seg) return;
-            var parts = seg.split(/[，,]/), cur = parts[0];
+            // ② 逗号：只在后面跟人名时切
+            var byComma = [], cur = seg;
+            var parts = seg.split(/[，,]/);
+            cur = parts[0];
             for (var i = 1; i < parts.length; i++) {
                 var p = parts[i].trim();
-                if (startsWithPerson(p)) { clauses.push(cur.trim()); cur = p; }
+                if (startsWithPerson(p)) { byComma.push(cur.trim()); cur = p; }
                 else cur += '，' + p;
             }
-            clauses.push(cur.trim());
+            byComma.push(cur.trim());
+            // ③ 和 / 以及 / 还有 / 、/ 跟 / 与：只在后面跟人名时切
+            byComma.forEach(function (cl) {
+                if (!cl) return;
+                var ps = conjRe ? cl.split(conjRe) : [cl];
+                ps.forEach(function (x) { x = x.trim(); if (x) pieces.push(x); });
+            });
         });
-        clauses = clauses.filter(function (s) { return s; });
-        clauses.forEach(function (cl) {
-            // ① 每日人数规则
-            var dr = parseDayRule(cl, dates);
+        // 逐段处理；只有人名没有内容的段，把名字带到下一段（「吴超和石浩东12月1日年假」）
+        var pending = [];
+        pieces.forEach(function (piece) {
+            var t = takeNames(piece);
+            var who = pending.concat(t.names);
+            pending = [];
+            var body = t.body;
+            if (!body.trim()) { pending = who; return; }   // 只有名字，等下一段
+            // ① 每日人数规则（对全员生效，不区分人）
+            var dr = parseDayRule(body, dates);
             if (dr) {
                 out.dayRules = out.dayRules.concat(dr.rules);
                 dr.invalid.forEach(function (x) { out.invalid.push(x); });
                 return;
             }
-            // ② 指定某人（中文名 / 英文名开头）
-            var hit = null;
-            for (var i = 0; i < names.length; i++) {
-                var n = names[i];
-                var re = new RegExp('^\\s*' + escapeRe(n.cn) + '\\s*[:：,，的]?\\s*');
-                if (re.test(cl)) { hit = n.cn; cl = cl.replace(re, ''); break; }
-                var re2 = new RegExp('^\\s*' + escapeRe(n.en) + '\\s*[:：,，的]?\\s*', 'i');
-                if (re2.test(cl)) { hit = n.cn; cl = cl.replace(re2, ''); break; }
+            // ② 去掉「全员 / 所有人 / 大家」前缀
+            var isAll = ALL_RE.test(body);
+            body = body.replace(ALL_RE, '');
+            if (!body) return;
+            var n2 = parseNeedText(body, dates);
+            if (who.length) {
+                who.forEach(function (cn) { out.byName[cn] = mergeNeed(out.byName[cn], n2); });
+            } else {
+                out.global = mergeNeed(out.global, n2);
             }
-            // ③ 去掉「全员 / 所有人 / 大家」这类前缀
-            cl = cl.replace(/^\s*(全员|所有人|全体|大家|每个人|每人)\s*[:：,，]?\s*/, '');
-            if (!cl) return;
-            var n2 = parseNeedText(cl, dates);
-            if (hit) out.byName[hit] = mergeNeed(out.byName[hit], n2);
-            else out.global = mergeNeed(out.global, n2);
         });
+        // 末尾只剩人名（如「吴超和石浩东」）→ 提示没写需求
+        if (pending.length) out.invalid.push(pending.join('、') + '（只写了名字，没写需求）');
         out.invalid = dedup(out.invalid);
         if (out.global) (out.global.invalid || []).forEach(function (x) { out.invalid.push('全员：' + x); });
         Object.keys(out.byName).forEach(function (k) {
