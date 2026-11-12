@@ -434,7 +434,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 <body>
 <!-- 统一加载 XLSX 库，子页面不再各自从 CDN 引入（L5 修复） -->
 <script src="./xlsx.full.min.js"></script>
-<script src="common.js"></script><script>window.SHIFT_DATA = window.SHIFT_DATA || null;</script>
+<script src="common.js?v=4"></script><script>window.SHIFT_DATA = window.SHIFT_DATA || null;</script>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
@@ -469,12 +469,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
       </div>
       <span class="nav-label">不过审模块</span>
     </a>
-    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('music')" data-page="music">
-      <div class="nav-icon purple">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a07ff7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-      </div>
-      <span class="nav-label">音乐模块</span>
-    </a>
     <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('import')" data-page="import">
       <div class="nav-icon gold">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f7c84f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
@@ -488,15 +482,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
       <span class="nav-label">智能排班</span>
     </a>
   </div>
-  <div class="sidebar-footer">
-    <div class="user-card" title="当前账号">
-      <div class="user-avatar-sm" id="side-avatar">A</div>
-      <div class="user-info-sm">
-        <div class="user-name-sm" id="side-name">anweili</div>
-        <div class="user-role-sm">当前账号</div>
-      </div>
-    </div>
-  </div>
 </aside>
 
 <!-- MAIN -->
@@ -506,12 +491,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
       <span class="breadcrumb-item">排班考勤</span>
       <span>›</span>
       <span class="breadcrumb-item current">排班日历</span>
-    </div>
-    <div class="topbar-actions">
-      <div class="topbar-user">
-        <div class="user-avatar-sm" id="top-avatar">U</div>
-        <span id="top-name" style="font-size:12px;font-weight:600;color:var(--text-primary)">anweili</span>
-      </div>
     </div>
   </header>
 
@@ -658,10 +637,12 @@ var PAGE_MAP = {
     'calendar': { title: '排班日历', group: '工作台', file: null },
     'approve':  { title: '过审模块',   group: '功能', file: 'converter-approve.html' },
     'reject':   { title: '不过审模块',  group: '功能', file: 'converter-reject.html' },
-    'music':    { title: '音乐模块',   group: '功能', file: 'converter-music.html' },
     'import':   { title: '数据导入',   group: '功能', file: 'converter-import.html' },
     'scheduler':{ title: '智能排班',   group: '功能', file: 'scheduler.html' }
 };
+
+// 已下线的页面（如音乐模块）不再恢复，回到日历
+if (!PAGE_MAP[currentPage]) { currentPage = 'calendar'; try { sessionStorage.setItem('currentPage', 'calendar'); } catch(e) {} }
 
 function navigateTo(page) {
     if (page === currentPage && page === 'calendar') return;
@@ -1375,11 +1356,11 @@ function loadImportedData(){
 var currentUser = DEFAULT_USER;
 
 function applyUser(name){
-    var initial = (name.charAt(0)||'U').toUpperCase();
-    document.getElementById('side-avatar').textContent = initial;
-    document.getElementById('side-name').textContent = name;
-    document.getElementById('top-avatar').textContent = initial;
-    document.getElementById('top-name').textContent = name;
+    // 账号卡片 / 右上角头像已删除；保留函数仅为兼容，元素不存在时直接跳过
+    var initial = (String(name||'').charAt(0)||'U').toUpperCase();
+    [['side-avatar',initial],['side-name',name],['top-avatar',initial],['top-name',name]].forEach(function(x){
+        var el = document.getElementById(x[0]); if (el) el.textContent = x[1];
+    });
 }
 
 // ═══════════ 便签画板（画笔 + 文字备忘录） ═══════════

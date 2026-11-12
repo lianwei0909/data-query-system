@@ -125,6 +125,39 @@ var SCH = (function () {
         return (i >= 0 && j >= 0 && i <= j) ? [i, j] : null;
     }
 
+    // 班次关键词 → off / day / night
+    function shiftTypeOf(t) {
+        t = String(t || '');
+        if (/(夜|晚)/.test(t)) return 'night';
+        if (/(白|早|正常)/.test(t)) return 'day';
+        if (/(休|不上班)/.test(t)) return 'off';
+        return null;
+    }
+    // 把一句话切成若干组「星期列表 + 班次」：每组的班次取它后面、下一组星期之前的文字
+    function parseWeekdayClauses(seg) {
+        var s = String(seg).replace(/周末/g, '周六日').replace(/工作日/g, '周一至五')
+            .replace(/(周|星期|礼拜)\s*([1-7])(?!\d)/g, function (_, a, b) { return a + '一二三四五六日'.charAt(+b - 1); });
+        var regions = [], pos = 0;
+        while (pos < s.length) {
+            var idx = s.slice(pos).search(/(周|星期|礼拜)[一二三四五六日天]/);
+            if (idx < 0) break;
+            var st = pos + idx;
+            var m = s.slice(st).match(/^[周星期礼拜一二三四五六日天、,，和与及\/到至~～—\-\s]+/);
+            regions.push([st, st + m[0].length]);
+            pos = st + m[0].length;
+        }
+        return regions.map(function (rg, i) {
+            var end = i + 1 < regions.length ? regions[i + 1][0] : s.length;
+            var tail = s.slice(rg[1], end), rest = null;
+            var rm = tail.match(/(其余|其他|其它|剩下|剩余|别的)([\s\S]*)$/);
+            if (rm) { rest = shiftTypeOf(rm[2]); tail = tail.slice(0, rm.index); }
+            return {
+                wds: parseWeekdayList(s.slice(rg[0], rg[1])), type: shiftTypeOf(tail),
+                rest: rest === 'off' ? null : rest, text: s.slice(rg[0], end).replace(/[、,，\s]+$/, '')
+            };
+        }).filter(function (c) { return c.wds.length; });
+    }
+
     // 星期列表：周四周五 / 周四、五 / 周一到周五 / 周六日 / 周末 / 工作日 / 星期天 / 礼拜三 / 周1
     function parseWeekdayList(seg) {
         var s = String(seg).replace(/周末/g, '周六日').replace(/工作日/g, '周一至五')
@@ -218,13 +251,18 @@ var SCH = (function () {
             // 班次名里的数字（小夜班3 / 早班2）别当成日期
             var segN = seg.replace(/小夜班\s*3/g, '夜班').replace(/早班\s*2/g, '早班');
 
-            // ① 按星期的规律：「周四周五休」「周四周五白班」「每周六、日夜班」「周一到周五白班」「周末夜班」
-            var wds = /(周|星期|礼拜|工作日)/.test(segN) ? parseWeekdayList(segN) : [];
-            if (wds.length && !/\d/.test(segN.replace(/(周|星期|礼拜)\s*[1-7](?!\d)/g, ''))) {
-                if (/(休|不上班)/.test(segN) && !/(白|夜|早|正常)/.test(segN)) r.weekOff = dedup(r.weekOff.concat(wds));
-                else if (/夜/.test(segN)) r.weekNight = dedup(r.weekNight.concat(wds));
-                else if (/(白|早|正常)/.test(segN)) r.weekDay = dedup(r.weekDay.concat(wds));
-                else r.invalid.push(seg + '（没写明是休息、白班还是夜班）');
+            // ① 按星期的规律。一句里可以有多组，按「星期 + 后面的班次」逐组识别：
+            //   「周六日白班、周一到周五小夜」「周六日白班周一到周五小夜」「周四周五白班其余夜班」「每周四、五休」「周末夜班」
+            var clauses = /(周|星期|礼拜|工作日)/.test(segN) ? parseWeekdayClauses(segN) : [];
+            if (clauses.length && !/\d/.test(segN.replace(/(周|星期|礼拜)\s*[1-7](?!\d)/g, ''))) {
+                clauses.forEach(function (c) {
+                    var ty = c.type || (clauses.length === 1 ? shiftTypeOf(segN.replace(/(其余|其他|其它|剩下|剩余|别的)[\s\S]*$/, '')) : null);
+                    if (ty === 'off') r.weekOff = dedup(r.weekOff.concat(c.wds));
+                    else if (ty === 'night') r.weekNight = dedup(r.weekNight.concat(c.wds));
+                    else if (ty === 'day') r.weekDay = dedup(r.weekDay.concat(c.wds));
+                    else r.invalid.push(c.text + '（没写明是休息、白班还是夜班）');
+                    if (c.rest === 'night') r.nightAll = true; else if (c.rest === 'day') r.dayAll = true;
+                });
                 continue;
             }
             // ② 「其余夜班 / 其余白班」
@@ -274,6 +312,11 @@ var SCH = (function () {
             if (offAt[k]) r.invalid.push(fmtDayTok(k) + ' 同时填了' + offAt[k] + '和' + sh);
             else if (fixAt[k] && fixAt[k] !== sh) r.invalid.push(fmtDayTok(k) + ' 同时指定了白班和夜班');
             fixAt[k] = sh;
+        });
+        var wkName = { weekOff: '休息', weekDay: '白班', weekNight: '夜班' };
+        [['weekOff', 'weekDay'], ['weekOff', 'weekNight'], ['weekDay', 'weekNight']].forEach(function (pr) {
+            var both = r[pr[0]].filter(function (w) { return r[pr[1]].indexOf(w) >= 0; });
+            if (both.length) r.invalid.push('周' + both.map(cnWeek).join('') + ' 同时设成了' + wkName[pr[0]] + '和' + wkName[pr[1]]);
         });
         r.invalid = dedup(r.invalid); r.notes = dedup(r.notes);
         return r;
@@ -2649,7 +2692,7 @@ var SCH = (function () {
     // 提示统一走 common.js 的全局提示框（挂在 body 下、样式在 head 里，切换模块也不会残留或错位）；
     // 单独打开 scheduler.html（没加载 common.js）时才用页面自带的提示条
     function notify(msg, type) {
-        if (typeof DC !== 'undefined' && DC && typeof DC.showNotification === 'function') { DC.showNotification(msg, type || 'success'); return; }
+        if (typeof DC !== 'undefined' && DC && typeof DC.showNotification === 'function' && (DC.VERSION || 0) >= 4) { DC.showNotification(msg, type || 'success'); return; }
         var n = $('sch-notification');
         if (!n) return;
         if (_notifTimer) clearTimeout(_notifTimer);

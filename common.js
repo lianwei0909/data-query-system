@@ -473,6 +473,7 @@ var DC = (function() {
     }
 
     return {
+        VERSION: 4,   // 提示框/加载层新版标记，scheduler.js 据此判断是否可用
         PAGE_SIZE: PAGE_SIZE,
         DEBUG: DEBUG,
         log: log,
