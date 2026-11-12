@@ -25,6 +25,7 @@ var SCH = (function () {
         longRest: 12, run6: 15, segLen: 8,
         segMix: 2, allNight: 120, allDay: 8,
         nightBias: 4, weekendBal: 5, prefer: 3, sw: 2,
+        balanceNight: 30,
         // 「小夜后次日不上白班」降级为重罚软约束：在 7 人规模下它与
         // 「每天≥2 人夜班」互相冲突，硬卡死会导致整个班表无解。
         // 权重给得很高（仅次于硬违规），求解器仍极力避免，但必要时可让步。
@@ -247,6 +248,7 @@ var SCH = (function () {
     // 天数要求：「上班20天」「出勤19天」「夜班最多10天」「白班至少8天」「尽量夜班不超过10天」
     var KIND_CN = { work: '上班', day: '白班', night: '夜班', total: '上班' };
     var OP_CN = { eq: '=', min: '≥', max: '≤' };
+    var BAL_CN = { night: '夜班', day: '白班', weekend: '周末班', work: '出勤' };
     function countOfDays(s) {
         var m = String(s).match(/(上班|出勤|白班|夜班|小夜)\s*(至少|不少于|不低于|最少|最多|不超过|不多于|至多|尽量)?\s*(\d{1,2})\s*天/);
         if (!m) return null;
@@ -272,7 +274,7 @@ var SCH = (function () {
         if (!a) return b;
         if (!b) return a;
         var out = {};
-        ['leave', 'off', 'fix', 'work', 'weekDay', 'weekNight', 'weekOff', 'weekWork', 'counts', 'invalid', 'notes'].forEach(function (k) {
+        ['leave', 'off', 'fix', 'work', 'weekDay', 'weekNight', 'weekOff', 'weekWork', 'counts', 'balance', 'invalid', 'notes'].forEach(function (k) {
             out[k] = dedup((a[k] || []).concat(b[k] || []));
         });
         out.prefer = b.prefer || a.prefer || '';
@@ -365,7 +367,7 @@ var SCH = (function () {
 
     // dates（可选）= 本期日期数组；传入后日期会落到本期具体某天，识别不了 / 不在本期的写进 invalid 提示用户
     function parseNeedText(text, dates) {
-        var r = { leave: [], off: [], fix: [], work: [], weekDay: [], weekNight: [], weekOff: [], weekWork: [], prefer: '', target: null, counts: [], nightAll: false, dayAll: false, invalid: [], notes: [] };
+        var r = { leave: [], off: [], fix: [], work: [], weekDay: [], weekNight: [], weekOff: [], weekWork: [], prefer: '', target: null, counts: [], balance: [], nightAll: false, dayAll: false, invalid: [], notes: [] };
         if (!text) return r;
         var segs = String(text).split(/[,，。;；\n\r]+/);   // 顿号留给「8、9号休」「周四、五休」这种并列
         for (var i = 0; i < segs.length; i++) {
@@ -374,6 +376,14 @@ var SCH = (function () {
             // 班次名里的数字（小夜班3 / 早班2）别当成日期
             var segN = seg.replace(/小夜班\s*3/g, '夜班').replace(/早班\s*2/g, '早班');
 
+            // ①' 均衡类：「将夜班稍微平均一下」「夜班平均分配」「白班均衡一点」「周末班平均」
+            // 必须放在星期分支之前，否则「周末班平均」会被当成「周末 + 班次」解析
+            if (/(平均|均衡|均分|平摊|分摊|平衡|差不多|一样多)/.test(segN) && /(夜|白|班|周末|出勤)/.test(segN)) {
+                // 出勤天数固定时，白班均衡与夜班均衡互为镜像，统一按夜班均衡处理
+                var bk = /周末/.test(segN) ? 'weekend' : /夜|白|班|出勤/.test(segN) ? 'night' : 'work';
+                r.balance = dedup((r.balance || []).concat([bk]));
+                continue;
+            }
             // ① 按星期的规律。一句里可以有多组，按「星期 + 后面的班次」逐组识别：
             //   「周六日白班、周一到周五小夜」「周六日白班周一到周五小夜」「周四周五白班其余夜班」「每周四、五休」「周末夜班」
             var clauses = /(周|星期|礼拜|工作日)/.test(segN) ? parseWeekdayClauses(segN) : [];
@@ -490,6 +500,7 @@ var SCH = (function () {
         if (n.target) parts.push('上班 ' + n.target + ' 天');
         (n.counts || []).forEach(function (c) { parts.push(KIND_CN[c.kind] + OP_CN[c.op] + c.n + '天' + (c.soft ? '（尽量）' : '')); });
         if (n.prefer) parts.push(n.prefer === 'day' ? '偏白班' : '偏夜班');
+        (n.balance || []).forEach(function (b) { parts.push(BAL_CN[b] + '平均分配'); });
         if (n.invalid && n.invalid.length) parts.push('⚠ 未识别：' + n.invalid.join('；'));
         if (n.notes && n.notes.length) parts.push('ℹ ' + n.notes.join('；'));
         return parts.join(' · ');
@@ -524,7 +535,7 @@ var SCH = (function () {
     function buildInput(dates, people, rules, carry, opts) {
         opts = opts || {};
         var P = people.length, T = dates.length;
-        var fixed = [], leaveName = [], targets = [], prefers = [], nightBias = [], conflicts = [], countReqs = [];
+        var fixed = [], leaveName = [], targets = [], prefers = [], nightBias = [], conflicts = [], countReqs = [], balSet = [];
         var dn = function (i) { return (dates[i].getMonth() + 1) + '/' + dates[i].getDate(); };
         // 自定义需求（全局）：先解析，再按人合并到各自需求上
         var custom = opts.custom || null;
@@ -549,7 +560,7 @@ var SCH = (function () {
                 weekDay: need.weekDay.join(','), weekNight: need.weekNight.join(','),
                 weekOff: need.weekOff.join(','), weekWork: need.weekWork.join(','),
                 prefer: need.prefer || '', target: need.target || pe.target,
-                counts: need.counts || []
+                counts: need.counts || [], balance: need.balance || []
             };
             parseEntries(peEff.leave, dates, true).forEach(function (e) {
                 fp[e.idx] = FIX_LEAVE;
@@ -600,6 +611,7 @@ var SCH = (function () {
             targets.push(peEff.target || rules.targetDays);
             nightBias.push(typeof pe.nightBias === 'number' ? pe.nightBias : 0.5);
             prefers.push(peEff.prefer || '');
+            (peEff.balance || []).forEach(function (b) { if (balSet.indexOf(b) < 0) balSet.push(b); });
             // 天数类要求（白班/夜班/上班 至少/最多 N 天）
             (peEff.counts || []).forEach(function (c) {
                 if (c.kind === 'work' && c.op === 'eq' && !c.soft) return;   // 已作为 target
@@ -624,6 +636,11 @@ var SCH = (function () {
         var scale = biasSum > 0 ? totalNight / biasSum : 0;
         var nightTarget = [];
         for (var tn = 0; tn < P; tn++) nightTarget.push(targets[tn] * nightBias[tn] * scale);
+        // 自定义需求「夜班平均一下」：不再按往期习惯加权，改成每人等额分摊夜班总量
+        if (balSet.indexOf('night') >= 0) {
+            var perNight = totalNight / P;
+            for (var bn = 0; bn < P; bn++) nightTarget[bn] = perNight;
+        }
 
         return {
             dates: dates, people: people, rules: rules,
@@ -634,6 +651,7 @@ var SCH = (function () {
             carry: carry || null,
             conflicts: conflicts,
             countReqs: countReqs,
+            balance: balSet,
             dayRules: (custom && custom.dayRules) ? custom.dayRules : [],
             customNotes: customNotes,
             needNotes: opts.needNotes || []
@@ -914,6 +932,14 @@ var SCH = (function () {
                 else if (cr.op === 'max') row(terms.concat([term(-1, sl('cq_' + ci, wgt, info))]), '<=', cr.n);
                 else row(terms.concat([term(-1, sl('cqL_' + ci, wgt, info)), term(1, sl('cqH_' + ci, wgt, info))]), '=', cr.n);
             });
+            // 自定义需求「夜班平均一下」：每人夜班数限制在均值 ±1 天内（排不开时进校验报告）
+            if ((input.balance || []).indexOf('night') >= 0) {
+                var NB = []; for (t = 0; t < T; t++) NB.push(term(1, nv(p, t)));
+                var avgN = input.nightTarget[p] || 0;
+                var loN = Math.max(0, Math.floor(avgN) - 1), hiN = Math.ceil(avgN) + 1;
+                row(NB.concat([term(1, sl('nbL_' + p, hardW, { k: 'balNight', p: p, lo: loN, hi: hiN }))]), '>=', loN);
+                row(NB.concat([term(-1, sl('nbH_' + p, hardW, { k: 'balNight', p: p, lo: loN, hi: hiN }))]), '<=', hiN);
+            }
             if (stage === 2) {
                 // ── 班型软目标（与原算法口径一致） ──
                 // 连休 3 天以上轻罚
@@ -990,6 +1016,7 @@ var SCH = (function () {
                 case 'mustWork': hard.push(nm(m.p) + ' ' + dn(m.t) + ' 要求上班，但被排成休息'); break;
                 case 'dayRule': hard.push(dn(m.t) + ' 自定义要求' + KIND_CN[m.kind] + OP_CN[m.op] + m.n + '人，实际差 ' + amt + ' 人'); break;
                 case 'count': hard.push(nm(m.p) + ' 自定义要求' + KIND_CN[m.kind] + OP_CN[m.op] + m.n + '天，实际差 ' + amt + ' 天'); break;
+                case 'balNight': hard.push(nm(m.p) + ' 夜班未能平均（要求 ' + m.lo + '~' + m.hi + ' 天）'); break;
                 case 'week': hard.push(nm(m.p) + ' ' + dn(m.t) + '（周' + '日一二三四五六'.charAt(input.dates[m.t].getDay()) + '）应上' + m.v); break;
                 case 'solo': solo.push(nm(m.p) + ' ' + dn(m.t)); break;
                 case 'soloCarry': solo.push(nm(m.p) + ' 上期末单休，' + dn(0) + ' 未能补休'); break;
@@ -1165,7 +1192,13 @@ var SCH = (function () {
         if (pref === 'day') soft += night * W.prefer;
         else if (pref === 'night') soft += (work - night) * W.prefer;
         var nt = this.in.nightTarget ? this.in.nightTarget[p] : 0;
-        if (nt) soft += Math.abs(night - nt) * W.nightBias;
+        if (nt) {
+            if ((this.in.balance || []).indexOf('night') >= 0) {
+                var loB = Math.max(0, Math.floor(nt) - 1), hiB = Math.ceil(nt) + 1;
+                if (night < loB) hard += (loB - night) * HARD;
+                if (night > hiB) hard += (night - hiB) * HARD;
+            } else soft += Math.abs(night - nt) * W.nightBias;
+        }
         // 白/夜来回切换
         for (var n = 0; n < T - 1; n++) { if (a[n] && a[n + 1] && a[n] !== a[n + 1]) soft += W.sw; }
 
@@ -1268,7 +1301,13 @@ var SCH = (function () {
             var pref = this.in.prefers[p];
             if (pref === 'day') soft += night * W.prefer; else if (pref === 'night') soft += (work - night) * W.prefer;
             var nt = this.in.nightTarget ? this.in.nightTarget[p] : 0;
-            if (nt) soft += Math.abs(night - nt) * W.nightBias;
+            if (nt) {
+                if ((this.in.balance || []).indexOf('night') >= 0) {
+                    var loB2 = Math.max(0, Math.floor(nt) - 1), hiB2 = Math.ceil(nt) + 1;
+                    if (night < loB2) hard += (loB2 - night) * HARD;
+                    if (night > hiB2) hard += (night - hiB2) * HARD;
+                } else soft += Math.abs(night - nt) * W.nightBias;
+            }
             for (var n = 0; n < this.T - 1; n++) if (a[n] && a[n + 1] && a[n] !== a[n + 1]) soft += W.sw;
         }
         for (var d = 0; d < this.T; d++) {
@@ -2403,6 +2442,12 @@ var SCH = (function () {
                 var bad = (cr.op === 'min' && act < cr.n) || (cr.op === 'max' && act > cr.n) || (cr.op === 'eq' && act !== cr.n);
                 if (bad) v.push(st.cn + ' 自定义要求' + KIND_CN[cr.kind] + OP_CN[cr.op] + cr.n + '天，实际 ' + act + ' 天');
             });
+            // 夜班平均（自定义需求）：允许均值 ±1 天
+            if ((input.balance || []).indexOf('night') >= 0) {
+                var avgN2 = input.nightTarget[p] || 0;
+                var lo2 = Math.max(0, Math.floor(avgN2) - 1), hi2 = Math.ceil(avgN2) + 1;
+                if (st.night < lo2 || st.night > hi2) v.push(st.cn + ' 夜班 ' + st.night + ' 天，未平均（要求 ' + lo2 + '~' + hi2 + ' 天）');
+            }
         }
         for (var dd = 0; dd < T; dd++) {
             var ds = result.dayStats[dd];
