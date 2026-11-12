@@ -167,21 +167,39 @@ var DC = (function() {
 
     // ── 时间格式化 ──
     // keepTime=true 保留 HH:mm:ss，false 只保留 YYYY/M/D
-    function formatTimeStamp(ts, keepTime = false) {
-        if (!ts) return '';
+    // Excel 序列号是「本地时间、无时区」的天数：整数部分 = 日期，小数部分 = 一天中的时刻。
+    // 原来用 UTC 毫秒数 new Date() 再按本地时间读，北京时间会整体偏 +8 小时（晚上 20 点变成次日）。
+    function excelSerialToParts(serial) {
+        var n = parseFloat(serial);
+        if (!isFinite(n)) return null;
+        var days = Math.floor(n);
+        var secs = Math.round((n - days) * 86400);
+        if (secs >= 86400) { days += 1; secs -= 86400; }
+        // 25569 = 1970-01-01；用 UTC 构造再用 UTC 读，全程不经过本地时区
+        var d = new Date((days - 25569) * 86400000);
+        if (isNaN(d)) return null;
+        return {
+            y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(),
+            hh: Math.floor(secs / 3600), mm: Math.floor((secs % 3600) / 60), ss: secs % 60
+        };
+    }
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    function formatTimeStamp(ts, keepTime) {
+        keepTime = !!keepTime;
+        if (ts === null || ts === undefined || ts === '') return '';
+        if (ts instanceof Date) {
+            if (isNaN(ts)) return '';
+            var base = ts.getFullYear() + '/' + (ts.getMonth() + 1) + '/' + ts.getDate();
+            return keepTime ? base + ' ' + pad2(ts.getHours()) + ':' + pad2(ts.getMinutes()) + ':' + pad2(ts.getSeconds()) : base;
+        }
         ts = String(ts).replace(/\t/g, ' ').trim();
 
-        // Excel 序列号
-        if (/^\d+(\.\d+)?$/.test(ts) && ts.indexOf('/') === -1 && ts.indexOf('-') === -1) {
-            var d = new Date((parseFloat(ts) - 25569) * 86400 * 1000);
-            if (isNaN(d)) return ts;
-            if (keepTime) {
-                return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() +
-                    ' ' + String(d.getHours()).padStart(2, '0') + ':' +
-                    String(d.getMinutes()).padStart(2, '0') + ':' +
-                    String(d.getSeconds()).padStart(2, '0');
-            }
-            return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+        // Excel 序列号（如 46191.8333）
+        if (/^\d+(\.\d+)?$/.test(ts) && ts.length <= 12) {
+            var p = excelSerialToParts(ts);
+            if (!p) return ts;
+            var r0 = p.y + '/' + p.m + '/' + p.d;
+            return keepTime ? r0 + ' ' + pad2(p.hh) + ':' + pad2(p.mm) + ':' + pad2(p.ss) : r0;
         }
 
         // 日期字符串 "2026-06-18 10:53:41" 或 "2026/06/18"
@@ -230,6 +248,18 @@ var DC = (function() {
     }
 
     // ── 文件读取（自动判断 CSV / Excel） ──
+    // 读出的每个单元格统一转成字符串（数字型 TimeStamp 等不会再因 .trim() 报错）；
+    // 解析与回调分开 try：回调内部的异常不会被误报为「文件解析失败」并导致回调执行两次
+    function stringifyRow(row) {
+        var o = {};
+        Object.keys(row).forEach(function(k) {
+            var v = row[k];
+            if (v === null || v === undefined) o[k] = '';
+            else if (v instanceof Date) o[k] = formatTimeStamp(v, true);
+            else o[k] = String(v);
+        });
+        return o;
+    }
     function readFile(file, callback) {
         var ext = file.name.split('.').pop().toLowerCase();
         if (!['csv', 'xlsx', 'xls'].includes(ext)) {
@@ -238,19 +268,20 @@ var DC = (function() {
         }
         var reader = new FileReader();
         reader.onload = function(ev) {
+            var data;
             try {
-                var data;
                 if (ext === 'csv') {
                     data = parseCSV(ev.target.result);
                 } else {
                     var wb = XLSX.read(ev.target.result, { type: 'array' });
                     var ws = wb.Sheets[wb.SheetNames[0]];
-                    data = XLSX.utils.sheet_to_json(ws);
+                    data = XLSX.utils.sheet_to_json(ws, { defval: '' }).map(stringifyRow);
                 }
-                callback(null, data, ext);
             } catch (err) {
                 callback(err, null, ext);
+                return;
             }
+            callback(null, data, ext);
         };
         reader.onerror = function() {
             callback(new Error('文件读取失败'), null, ext);
@@ -366,24 +397,72 @@ var DC = (function() {
         }).join('');
     }
 
-    // ── 通知（需要页面有 #notification 元素） ──
+    // ── 通知 / 加载层 ──
+    // 子页面嵌入主页时（index.html 只取 <body> 内容），#notification / #loader 及其样式可能缺失。
+    // 这里找不到就自动创建并挂到 <body> 直下（避免被带 transform 的父容器影响 fixed 定位），并注入兜底样式。
+    var _uiStyleInjected = false;
+    function ensureUiStyle() {
+        if (_uiStyleInjected || typeof document === 'undefined') return;
+        _uiStyleInjected = true;
+        if (document.getElementById('dc-ui-style')) return;
+        var st = document.createElement('style');
+        st.id = 'dc-ui-style';
+        st.textContent =
+            '.dc-notify{position:fixed;top:30px;right:30px;padding:16px 30px;border-radius:14px;font-size:1em;font-weight:600;z-index:100000;' +
+            'transform:translateX(130%);transition:transform .4s cubic-bezier(.16,1,.3,1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);max-width:520px;word-break:break-all;color:#fff}' +
+            '.dc-notify.show{transform:translateX(0)}' +
+            '.dc-notify.success{background:rgba(16,185,129,.25);border:1px solid rgba(16,185,129,.55);color:#6ee7b7}' +
+            '.dc-notify.error{background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.55);color:#fca5a5}' +
+            '.dc-notify.info{background:rgba(59,130,246,.25);border:1px solid rgba(59,130,246,.55);color:#93c5fd}' +
+            '.dc-loader{display:none;position:fixed;inset:0;background:rgba(5,10,30,.85);z-index:99999;justify-content:center;align-items:center;flex-direction:column}' +
+            '.dc-loader.active{display:flex}' +
+            '.dc-loader .spinner{width:60px;height:60px;border:4px solid rgba(168,85,247,.3);border-top-color:#a855f7;border-radius:50%;animation:dcSpin 1s linear infinite}' +
+            '.dc-loader .loader-text{margin-top:25px;font-size:1.2em;color:rgba(255,255,255,.8);letter-spacing:1px}' +
+            '@keyframes dcSpin{to{transform:rotate(360deg)}}';
+        (document.head || document.body).appendChild(st);
+    }
+    function liftToBody(el) {
+        if (el && el.parentNode !== document.body) document.body.appendChild(el);
+        return el;
+    }
+    function getNotifyEl() {
+        ensureUiStyle();
+        var list = document.querySelectorAll('#notification');
+        var el = list.length ? list[list.length - 1] : null;
+        for (var i = 0; i < list.length - 1; i++) { if (list[i].parentNode) list[i].parentNode.removeChild(list[i]); }
+        if (!el) { el = document.createElement('div'); el.id = 'notification'; }
+        return liftToBody(el);
+    }
+    function getLoaderEl() {
+        ensureUiStyle();
+        var el = document.getElementById('loader');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'loader';
+            el.className = 'loader';
+            el.innerHTML = '<div class="spinner"></div><div class="loader-text" id="loaderText">处理中...</div>';
+        }
+        el.classList.add('dc-loader');
+        return liftToBody(el);
+    }
+
     var _notifTimer = null;
     function showNotification(msg, type) {
         type = type || 'success';
-        var el = document.getElementById('notification');
-        if (!el) return;
+        if (typeof document === 'undefined') return;
+        var el = getNotifyEl();
         // 清除上一次定时器
         if (_notifTimer) { clearTimeout(_notifTimer); _notifTimer = null; }
         // 先隐藏（移除 show class，inline transform 确保归位）
         el.classList.remove('show');
-        el.style.transform = 'translateX(120%)';
+        el.style.transform = 'translateX(130%)';
         el.style.transition = 'none';
         void el.offsetWidth; // 强制重排
         // 重置内联样式，让 CSS class 接管动画
         el.style.transform = '';
         el.style.transition = '';
         el.textContent = msg;
-        el.className = 'notification ' + type;
+        el.className = 'notification dc-notify ' + type;
         // 下一帧显示（确保浏览器已处理重置）
         requestAnimationFrame(function() {
             el.classList.add('show');
@@ -391,12 +470,12 @@ var DC = (function() {
         _notifTimer = setTimeout(function() {
             el.classList.remove('show');
             _notifTimer = null;
-        }, 2800);
+        }, type === 'error' ? 4500 : 2800);
     }
 
     // ── Loading 控制 ──
     function showLoader(text) {
-        var loader = document.getElementById('loader');
+        var loader = getLoaderEl();
         if (loader) {
             loader.classList.add('active');
             var lt = document.getElementById('loaderText');
@@ -417,6 +496,7 @@ var DC = (function() {
         parseCSV: parseCSV,
         extractFromStr: extractFromStr,
         formatTimeStamp: formatTimeStamp,
+        excelSerialToParts: excelSerialToParts,
         setupDragDrop: setupDragDrop,
         readFile: readFile,
         createPagination: createPagination,
