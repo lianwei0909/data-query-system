@@ -100,6 +100,11 @@
 .sch-violation{font-size:12.5px;color:#fca5a5;padding:2px 0}
 .sch-tip{font-size:12px;color:var(--text-muted);margin-bottom:10px}
 .sch-need-preview{font-size:11.5px;color:var(--text-muted);text-align:left;max-width:320px;white-space:normal;line-height:1.5}
+/* 自定义需求行：不绑定具体人，叠加到现有规则上 */
+.sch-custom-row td{background:rgba(247,200,79,.06);border-top:1px dashed rgba(247,200,79,.35)}
+.sch-custom-row td:first-child{color:var(--gold);font-weight:700}
+.sch-custom-row input[type=text]{border-color:rgba(247,200,79,.45)}
+.sch-custom-row input[type=text]:focus{border-color:var(--gold)}
 .sch-notes{background:rgba(247,200,79,.10);border:1px solid rgba(247,200,79,.3);border-radius:8px;padding:8px 14px;margin-bottom:12px}
 .sch-note{font-size:12.5px;color:#f7c84f;padding:2px 0}
 .sch-empty{text-align:center;padding:40px;color:var(--text-muted);font-size:14px}
@@ -152,7 +157,9 @@
     </div>
     <div class="hint-text">
       一句话写需求，多条用逗号隔开，右侧「识别结果」可实时核对：<br>
-      请假 <b>11月25日-27日年假</b>　·　休息 <b>8、9号休</b>　·　指定 <b>15号白班</b>　·　按星期 <b>周四周五休，周末白班，其余夜班</b>　·　偏好 <b>尽量少上夜班</b>
+      请假 <b>11月25日-27日年假</b>　·　休息 <b>8、9号休</b>　·　指定 <b>15号白班</b>　·　按星期 <b>周四周五休，周末白班，其余夜班</b>　·　偏好 <b>尽量少上夜班</b><br>
+      最后一行「自定义需求」对全员生效，叠加在现有规则之上，多条用分号隔开：<br>
+      全员 <b>12月31日不休</b>　·　每日人数 <b>每天白班至少3人</b>　·　点名 <b>吴超：12月1日-2日年假</b>　·　天数 <b>夜班最多10天</b>
     </div>
   </div>
 
