@@ -2009,7 +2009,7 @@ var SCH = (function () {
             personStats.push({
                 cn: input.people[p].cn, en: input.people[p].en, org: input.people[p].org,
                 work: work, rest: rest, leave: leave, leaveDetail: leaveDetail,
-                night: night, weekend: weekend, maxRun: maxRun
+                day: work - night, night: night, weekend: weekend, maxRun: maxRun
             });
         }
         var dayStats = [];
@@ -2503,7 +2503,7 @@ var SCH = (function () {
             th.title = keyOf(d) + ' ' + weekdayCn(d);
             hr.appendChild(th);
         });
-        ['出勤', '休', '小夜', '最长连班'].forEach(function (t) {
+        ['出勤', '休', '白班', '小夜', '最长连班'].forEach(function (t) {
             hr.appendChild(el('th', 'sch-sum-col', t));
         });
         thead.appendChild(hr); tbl.appendChild(thead);
@@ -2525,6 +2525,7 @@ var SCH = (function () {
             var st = result.personStats[p];
             tr.appendChild(el('td', 'sch-sum-col', String(st.work)));
             tr.appendChild(el('td', 'sch-sum-col', String(st.rest)));
+            tr.appendChild(el('td', 'sch-sum-col', String(st.day)));
             tr.appendChild(el('td', 'sch-sum-col', String(st.night)));
             var mr = el('td', 'sch-sum-col' + (st.maxRun > input.rules.maxRun ? ' bad' : ''), String(st.maxRun));
             tr.appendChild(mr);
@@ -2545,8 +2546,7 @@ var SCH = (function () {
                 if (pair[0] === '合计' && val > input.rules.maxStaff) cls += ' bad';
                 tr.appendChild(el('td', cls, String(val)));
             });
-            tr.appendChild(el('td', 'sch-sum-col', '')); tr.appendChild(el('td', 'sch-sum-col', ''));
-            tr.appendChild(el('td', 'sch-sum-col', '')); tr.appendChild(el('td', 'sch-sum-col', ''));
+            for (var ec = 0; ec < 5; ec++) tr.appendChild(el('td', 'sch-sum-col', ''));
             tfoot.appendChild(tr);
         });
         // 争议值班行
@@ -2554,8 +2554,7 @@ var SCH = (function () {
             var tr = el('tr', 'sch-duty-row');
             tr.appendChild(el('td', 'sch-name-col', pair[0]));
             pair[1].forEach(function (n) { tr.appendChild(el('td', 'sch-cell duty', n ? n.slice(0, 3) : '')); });
-            tr.appendChild(el('td', 'sch-sum-col', '')); tr.appendChild(el('td', 'sch-sum-col', ''));
-            tr.appendChild(el('td', 'sch-sum-col', '')); tr.appendChild(el('td', 'sch-sum-col', ''));
+            for (var ec = 0; ec < 5; ec++) tr.appendChild(el('td', 'sch-sum-col', ''));
             tfoot.appendChild(tr);
         });
         tbl.appendChild(tfoot);
@@ -2629,7 +2628,7 @@ var SCH = (function () {
 
         var tbl = el('table', 'sch-table sch-mini');
         var hr = el('tr');
-        ['姓名', '出勤', '休', '假', '小夜', '周末班', '最长连班'].forEach(function (t) { hr.appendChild(el('th', null, t)); });
+        ['姓名', '出勤', '休', '假', '白班', '小夜', '周末班', '最长连班'].forEach(function (t) { hr.appendChild(el('th', null, t)); });
         tbl.appendChild(hr);
         result.personStats.forEach(function (st) {
             var tr = el('tr');
@@ -2637,6 +2636,7 @@ var SCH = (function () {
             tr.appendChild(el('td', null, String(st.work)));
             tr.appendChild(el('td', null, String(st.rest)));
             tr.appendChild(el('td', null, st.leave ? String(st.leave) : '-'));
+            tr.appendChild(el('td', null, String(st.day)));
             tr.appendChild(el('td', null, String(st.night)));
             tr.appendChild(el('td', null, String(st.weekend)));
             tr.appendChild(el('td', null, String(st.maxRun)));
@@ -2646,16 +2646,12 @@ var SCH = (function () {
     }
 
     var _notifTimer = null;
+    // 提示统一走 common.js 的全局提示框（挂在 body 下、样式在 head 里，切换模块也不会残留或错位）；
+    // 单独打开 scheduler.html（没加载 common.js）时才用页面自带的提示条
     function notify(msg, type) {
+        if (typeof DC !== 'undefined' && DC && typeof DC.showNotification === 'function') { DC.showNotification(msg, type || 'success'); return; }
         var n = $('sch-notification');
         if (!n) return;
-        // 子页面容器带 transform 动画，fixed 定位会相对它而不是视口 → 错位。
-        // 把通知挂到 body 直下就没这个问题
-        if (n.parentNode !== document.body) {
-            var olds = document.body.querySelectorAll('#sch-notification');
-            for (var i = 0; i < olds.length; i++) if (olds[i] !== n) olds[i].parentNode.removeChild(olds[i]);
-            document.body.appendChild(n);
-        }
         if (_notifTimer) clearTimeout(_notifTimer);
         n.className = 'sch-notify ' + (type || 'success');
         n.textContent = msg;
@@ -2676,6 +2672,8 @@ var SCH = (function () {
 
     function init() {
         if (!$('people-box')) return;
+        var strays = document.querySelectorAll('body > #sch-notification');
+        for (var si = 0; si < strays.length; si++) strays[si].parentNode.removeChild(strays[si]);
         UI.people = loadPeople();
         UI.rules = loadRules();
 

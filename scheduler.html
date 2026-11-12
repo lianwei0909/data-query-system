@@ -107,8 +107,8 @@
 .sch-mini th{padding:8px 14px}
 .sch-mini td{padding:7px 14px}
 /* 通知条：类名避开主框架的 .notification（右侧滑入式），否则样式会被覆盖错位 */
-.sch-notify{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-120%);padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:10000;transition:transform .3s cubic-bezier(.16,1,.3,1);max-width:90vw;white-space:pre-wrap}
-.sch-notify.show{transform:translateX(-50%) translateY(0)}
+.sch-notify{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-12px);opacity:0;visibility:hidden;pointer-events:none;padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:10000;transition:opacity .25s,transform .3s cubic-bezier(.16,1,.3,1),visibility 0s linear .3s;max-width:90vw;white-space:pre-wrap}
+.sch-notify.show{transform:translateX(-50%) translateY(0);opacity:1;visibility:visible;transition:opacity .25s,transform .3s cubic-bezier(.16,1,.3,1),visibility 0s}
 .sch-notify.success{background:rgba(45,212,160,.18);border:1px solid rgba(45,212,160,.5);color:#6ee7b7}
 .sch-notify.error{background:rgba(247,95,95,.18);border:1px solid rgba(247,95,95,.5);color:#fca5a5}
 </style>
@@ -137,8 +137,7 @@
       <label class="sch-field" style="cursor:pointer"><input type="checkbox" id="rule-n2dh" style="width:auto"> 小夜后次日不上白班（硬约束）</label>
       <button type="button" class="board-eraser" id="btn-reset">恢复默认规则</button>
     </div>
-    <div class="hint-text" style="margin-top:10px">周期口径：上月 21 日 ~ 本月 20 日　·　规则：白班 / 夜班（小夜班3）；小夜之后次日不上白班；
-      <b>每天最多 5 人在班，休息保证连续两天（双休），目标形态为上五休二</b></div>
+    <div class="hint-text" style="margin-top:10px">周期：上月 21 日 ~ 本月 20 日　·　小夜后次日不上白班　·　休息尽量连休两天</div>
   </div>
 
   <!-- 人员需求 -->
@@ -152,13 +151,8 @@
       <button type="button" class="btn btn-secondary" id="btn-restore">恢复默认人员</button>
     </div>
     <div class="hint-text">
-      每人一格，一句话写清楚需求就行，多条之间用逗号或顿号隔开：<br>
-      · <b>24号年假</b>、<b>5号病假</b> → 请假（年假/病假/事假/产假/产检假/婚假/丧假/调休假/育儿假/陪产假）<br>
-      · <b>8、9号休</b> 或 <b>8-9号休</b> → 这几天必须休息<br>
-      · <b>15号白班</b>、<b>20号夜班</b> → 指定某天的班次<br>
-      · <b>周四周五白班，其余夜班</b> → 按星期固定班次（只对上班日生效）<br>
-      · <b>尽量少上夜班</b> / <b>想上白班</b> → 班次偏好<br>
-      日期支持 <b>24</b>（号）、<b>10-24</b>（月日）、<b>2026-10-24</b>；右侧「识别结果」会实时显示解析内容，方便核对
+      一句话写需求，多条用逗号隔开，右侧「识别结果」可实时核对：<br>
+      请假 <b>11月25日-27日年假</b>　·　休息 <b>8、9号休</b>　·　指定 <b>15号白班</b>　·　按星期 <b>周四周五休，周末白班，其余夜班</b>　·　偏好 <b>尽量少上夜班</b>
     </div>
   </div>
 

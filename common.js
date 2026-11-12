@@ -398,76 +398,60 @@ var DC = (function() {
     }
 
     // ── 通知 / 加载层 ──
-    // 子页面嵌入主页时（index.html 只取 <body> 内容），#notification / #loader 及其样式可能缺失。
-    // 这里找不到就自动创建并挂到 <body> 直下（避免被带 transform 的父容器影响 fixed 定位），并注入兜底样式。
-    var _uiStyleInjected = false;
+    // 全站共用一个提示框 #dc-toast 和一个加载层 #dc-loader：挂在 <body> 直下，样式注入 <head>。
+    // 子页面嵌入主页、或在模块之间切换时，样式不会随子页面一起被卸载，所以不会残留成无样式文字、也不会挤歪布局。
+    // 隐藏时 opacity:0 + visibility:hidden，不靠位移藏到屏幕外，因此不会露出半截。
     function ensureUiStyle() {
-        if (_uiStyleInjected || typeof document === 'undefined') return;
-        _uiStyleInjected = true;
-        if (document.getElementById('dc-ui-style')) return;
+        if (typeof document === 'undefined' || document.getElementById('dc-ui-style')) return;
         var st = document.createElement('style');
         st.id = 'dc-ui-style';
         st.textContent =
-            '.dc-notify{position:fixed;top:30px;right:30px;padding:16px 30px;border-radius:14px;font-size:1em;font-weight:600;z-index:100000;' +
-            'transform:translateX(130%);transition:transform .4s cubic-bezier(.16,1,.3,1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);max-width:520px;word-break:break-all;color:#fff}' +
-            '.dc-notify.show{transform:translateX(0)}' +
-            '.dc-notify.success{background:rgba(16,185,129,.25);border:1px solid rgba(16,185,129,.55);color:#6ee7b7}' +
-            '.dc-notify.error{background:rgba(239,68,68,.25);border:1px solid rgba(239,68,68,.55);color:#fca5a5}' +
-            '.dc-notify.info{background:rgba(59,130,246,.25);border:1px solid rgba(59,130,246,.55);color:#93c5fd}' +
-            '.dc-loader{display:none;position:fixed;inset:0;background:rgba(5,10,30,.85);z-index:99999;justify-content:center;align-items:center;flex-direction:column}' +
-            '.dc-loader.active{display:flex}' +
-            '.dc-loader .spinner{width:60px;height:60px;border:4px solid rgba(168,85,247,.3);border-top-color:#a855f7;border-radius:50%;animation:dcSpin 1s linear infinite}' +
-            '.dc-loader .loader-text{margin-top:25px;font-size:1.2em;color:rgba(255,255,255,.8);letter-spacing:1px}' +
-            '@keyframes dcSpin{to{transform:rotate(360deg)}}';
-        (document.head || document.body).appendChild(st);
+            '#dc-toast{position:fixed;top:24px;right:24px;z-index:2147483000;max-width:min(520px,calc(100vw - 48px));padding:14px 24px;border-radius:12px;' +
+            'font-size:14px;font-weight:600;line-height:1.5;white-space:pre-wrap;word-break:break-word;color:#e5e7eb;background:rgba(24,26,33,.95);' +
+            'border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 30px rgba(0,0,0,.35);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);' +
+            'opacity:0;visibility:hidden;transform:translateX(24px);pointer-events:none;' +
+            'transition:opacity .25s ease,transform .3s cubic-bezier(.16,1,.3,1),visibility 0s linear .3s}' +
+            '#dc-toast.show{opacity:1;visibility:visible;transform:none;transition:opacity .25s ease,transform .3s cubic-bezier(.16,1,.3,1),visibility 0s}' +
+            '#dc-toast.success{background:rgba(6,60,46,.95);border-color:rgba(16,185,129,.6);color:#a7f3d0}' +
+            '#dc-toast.error{background:rgba(70,18,18,.95);border-color:rgba(239,68,68,.6);color:#fecaca}' +
+            '#dc-toast.info{background:rgba(18,38,78,.95);border-color:rgba(59,130,246,.6);color:#bfdbfe}' +
+            '#dc-loader{display:none;position:fixed;inset:0;z-index:2147482000;background:rgba(5,10,30,.85);justify-content:center;align-items:center;flex-direction:column}' +
+            '#dc-loader.active{display:flex}' +
+            '#dc-loader .dc-spinner{width:60px;height:60px;border:4px solid rgba(168,85,247,.3);border-top-color:#a855f7;border-radius:50%;animation:dcSpin 1s linear infinite}' +
+            '#dc-loader .dc-loader-text{margin-top:25px;font-size:1.2em;color:rgba(255,255,255,.85);letter-spacing:1px}' +
+            '@keyframes dcSpin{to{transform:rotate(360deg)}}' +
+            // 各页面自带的旧提示框 / 加载层不再使用，统一隐藏，避免嵌入主页后样式丢失露出来
+            '#notification,#loader{display:none!important}';
+        (document.head || document.documentElement).appendChild(st);
     }
-    function liftToBody(el) {
-        if (el && el.parentNode !== document.body) document.body.appendChild(el);
+    function bodyChild(id, build) {
+        ensureUiStyle();
+        var el = document.getElementById(id);
+        if (!el) { el = document.createElement('div'); el.id = id; if (build) build(el); }
+        if (el.parentNode !== document.body) document.body.appendChild(el);
         return el;
     }
-    function getNotifyEl() {
-        ensureUiStyle();
-        var list = document.querySelectorAll('#notification');
-        var el = list.length ? list[list.length - 1] : null;
-        for (var i = 0; i < list.length - 1; i++) { if (list[i].parentNode) list[i].parentNode.removeChild(list[i]); }
-        if (!el) { el = document.createElement('div'); el.id = 'notification'; }
-        return liftToBody(el);
+    function getToastEl() {
+        return bodyChild('dc-toast', function (el) { el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); });
     }
     function getLoaderEl() {
-        ensureUiStyle();
-        var el = document.getElementById('loader');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'loader';
-            el.className = 'loader';
-            el.innerHTML = '<div class="spinner"></div><div class="loader-text" id="loaderText">处理中...</div>';
-        }
-        el.classList.add('dc-loader');
-        return liftToBody(el);
+        return bodyChild('dc-loader', function (el) {
+            el.innerHTML = '<div class="dc-spinner"></div><div class="dc-loader-text">处理中...</div>';
+        });
     }
 
     var _notifTimer = null;
     function showNotification(msg, type) {
         type = type || 'success';
-        if (typeof document === 'undefined') return;
-        var el = getNotifyEl();
-        // 清除上一次定时器
+        if (typeof document === 'undefined' || !document.body) return;
+        var el = getToastEl();
         if (_notifTimer) { clearTimeout(_notifTimer); _notifTimer = null; }
-        // 先隐藏（移除 show class，inline transform 确保归位）
         el.classList.remove('show');
-        el.style.transform = 'translateX(130%)';
-        el.style.transition = 'none';
-        void el.offsetWidth; // 强制重排
-        // 重置内联样式，让 CSS class 接管动画
-        el.style.transform = '';
-        el.style.transition = '';
         el.textContent = msg;
-        el.className = 'notification dc-notify ' + type;
-        // 下一帧显示（确保浏览器已处理重置）
-        requestAnimationFrame(function() {
-            el.classList.add('show');
-        });
-        _notifTimer = setTimeout(function() {
+        el.className = type;
+        void el.offsetWidth; // 强制重排，保证连续提示也能重新播放动画
+        el.classList.add('show');
+        _notifTimer = setTimeout(function () {
             el.classList.remove('show');
             _notifTimer = null;
         }, type === 'error' ? 4500 : 2800);
@@ -475,17 +459,17 @@ var DC = (function() {
 
     // ── Loading 控制 ──
     function showLoader(text) {
-        var loader = getLoaderEl();
-        if (loader) {
-            loader.classList.add('active');
-            var lt = document.getElementById('loaderText');
-            if (lt && text) lt.textContent = text;
-        }
+        if (typeof document === 'undefined' || !document.body) return;
+        var el = getLoaderEl();
+        var lt = el.querySelector('.dc-loader-text');
+        if (lt) lt.textContent = text || '处理中...';
+        el.classList.add('active');
     }
 
     function hideLoader() {
-        var loader = document.getElementById('loader');
-        if (loader) loader.classList.remove('active');
+        if (typeof document === 'undefined') return;
+        var el = document.getElementById('dc-loader');
+        if (el) el.classList.remove('active');
     }
 
     return {
