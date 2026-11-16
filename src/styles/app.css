@@ -1,6 +1,8 @@
 /* 主框架与通用组件样式（由 v1 index.html 迁移；.sub-page-body 为子页面通用样式容器） */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text-primary);min-height:100vh;display:flex;overflow-x:hidden!important;overflow-y:hidden!important;min-width:0!important}
+/* body 是 flex 容器：#app 必须显式撑满，否则宽度按内容 fit-content，宽屏右侧会留大片空白 */
+#app{width:100%;flex:1 1 0;min-width:0}
 
 /* SIDEBAR */
 .sidebar{width:270px;min-width:270px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;position:fixed;left:0;top:0;z-index:10}
