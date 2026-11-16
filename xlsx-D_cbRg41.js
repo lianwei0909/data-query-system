@@ -1,1 +1,0 @@
-import{_ as l}from"./index-lDtUvV3g.js";let r=null;function i(){return r||(r=l(()=>import("./xlsx.min-BX8kxQqY.js").then(t=>t.x),[],import.meta.url).then(t=>{var e;return(e=t.default)!=null?e:t}).catch(t=>{throw r=null,t})),r}export{i as l};

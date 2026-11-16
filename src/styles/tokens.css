@@ -1,0 +1,45 @@
+/* 设计变量（唯一来源）：暗色 Aurora 为默认，亮色 Paper 通过 html[data-theme=paper] 切换。所有页面只引用变量，不写死颜色。 */
+:root{
+  color-scheme:dark;
+  /* ── Aurora（暗色，默认）── */
+  --bg:#0B0E14;--sidebar-bg:#0E121B;--card-bg:#12161F;--card-bg2:#171C27;
+  --border:#232936;--border-light:#1B2130;
+  --hover:rgba(255,255,255,.045);--hover-strong:rgba(255,255,255,.08);
+  --weekend:rgba(255,255,255,.022);
+  --input-border:rgba(255,255,255,.14);--input-border-hover:rgba(255,255,255,.26);
+  --scrollbar:rgba(255,255,255,.12);
+  --accent:#5B8CFF;--accent-glow:rgba(91,140,255,.16);--on-accent:#FFFFFF;
+  --day:#5B8CFF;--night:#FFB454;--rest:#FF6B6B;--leave:#B08BFF;
+  --green:#3DDC97;--green-bg:rgba(61,220,151,.14);
+  --red:#FF6B6B;--red-bg:rgba(255,107,107,.14);
+  --orange:#FFB454;--orange-bg:rgba(255,180,84,.14);
+  --purple:#B08BFF;--purple-bg:rgba(176,139,255,.14);
+  --gold:#F7C84F;--gold-bg:rgba(247,200,79,.14);
+  --text-primary:#E9EDF5;--text-secondary:#94A0B8;--text-muted:#7C88A2;
+  --radius:16px;--radius-sm:10px;
+  --shadow:none;--shadow-hover:none;
+  --day-bg:rgba(91,140,255,.16);--night-bg:rgba(255,180,84,.16);
+  --rest-bg:rgba(255,107,107,.14);--leave-bg:rgba(176,139,255,.16);
+}
+:root[data-theme="paper"]{
+  color-scheme:light;
+  /* ── Paper（亮色）── */
+  --bg:#F4F6FB;--sidebar-bg:#FFFFFF;--card-bg:#FFFFFF;--card-bg2:#F7F9FE;
+  --border:#E3E8F2;--border-light:#EDF1F8;
+  --hover:rgba(20,32,64,.035);--hover-strong:rgba(20,32,64,.06);
+  --weekend:rgba(20,32,64,.022);
+  --input-border:#DCE3F0;--input-border-hover:#C6D0E4;
+  --scrollbar:rgba(20,32,64,.16);
+  --accent:#3B6CF6;--accent-glow:rgba(59,108,246,.12);--on-accent:#FFFFFF;
+  --day:#3B6CF6;--night:#E8892B;--rest:#E5484D;--leave:#8B5CF6;
+  --green:#12A171;--green-bg:rgba(18,161,113,.12);
+  --red:#E5484D;--red-bg:rgba(229,72,77,.10);
+  --orange:#E8892B;--orange-bg:rgba(232,137,43,.12);
+  --purple:#8B5CF6;--purple-bg:rgba(139,92,246,.10);
+  --gold:#B8860B;--gold-bg:rgba(184,134,11,.12);
+  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#6B778C;
+  --shadow:0 4px 16px rgba(20,32,64,.06);
+  --shadow-hover:0 6px 22px rgba(20,32,64,.10);
+  --day-bg:rgba(59,108,246,.10);--night-bg:rgba(232,137,43,.12);
+  --rest-bg:rgba(229,72,77,.10);--leave-bg:rgba(139,92,246,.10);
+}
