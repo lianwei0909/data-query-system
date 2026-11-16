@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    common.js — 数据转换工具公共代码库
-   被 converter-approve.html / converter-reject.html / converter-music.html 共享
+   被 index.html / converter-approve.html / converter-reject.html / converter-import.html 共享
    ═══════════════════════════════════════════════════════════════ */
 
 var DC = (function() {
@@ -260,10 +260,139 @@ var DC = (function() {
         });
         return o;
     }
+    // ── Excel 解析库就绪：主页按需加载 xlsx（window.loadXlsx），独立打开子页面时 <head> 已同步加载 ──
+    function ensureXlsx() {
+        if (typeof XLSX !== 'undefined') return Promise.resolve(XLSX);
+        if (typeof window !== 'undefined' && typeof window.loadXlsx === 'function') return window.loadXlsx();
+        return Promise.reject(new Error('Excel 解析库未加载'));
+    }
+
+    // ── 文本解码：优先 UTF-8（含 BOM），不是合法 UTF-8 时按 GBK 解码（中文 Windows 版 Excel 另存的 CSV 多为 GBK） ──
+    function decodeText(buf) {
+        var bytes = new Uint8Array(buf);
+        if (typeof TextDecoder === 'undefined') return String.fromCharCode.apply(null, bytes);
+        try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+        catch (e) {
+            try { return new TextDecoder('gbk').decode(bytes); }
+            catch (e2) { return new TextDecoder('utf-8').decode(bytes); }
+        }
+    }
+
+    // ── 本地日期 YYYY-MM-DD（toISOString 是 UTC，北京时间 0~8 点会变成前一天） ──
+    function localDateStr(d) {
+        d = d || new Date();
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
+    // ═══════════ 班表日期列：统一成带年份的 YYYY-MM-DD ═══════════
+    // 支持：2026-11-21 / 2026/11/21 / 2026年11月21日 / 11月21日 / 11月21号
+    function parseDateKey(key) {
+        var s = String(key == null ? '' : key).trim(), m;
+        if ((m = s.match(/^(\d{4})\s*[-\/.年]\s*(\d{1,2})\s*[-\/.月]\s*(\d{1,2})\s*[日号]?$/))) return { y: +m[1], m: +m[2], d: +m[3] };
+        if ((m = s.match(/^(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?$/))) return { y: null, m: +m[1], d: +m[2] };
+        return null;
+    }
+    function ymdKey(y, m, d) { return y + '-' + pad2(m) + '-' + pad2(d); }
+    function isYmdKey(k) { return /^\d{4}-\d{2}-\d{2}$/.test(String(k)); }
+
+    // 给没有年份的日期列推断年份：按列顺序遇到月份回绕（12 月 → 1 月）年份 +1；
+    // 起始年份取「让这段日期的中点离参考日期最近」的那一年（默认参考日期 = 今天）。
+    // 返回 { 原列名: 'YYYY-MM-DD' }，非日期列不出现在结果里。
+    function inferDateKeys(keys, refDate) {
+        refDate = refDate || new Date();
+        var out = {}, seq = [];
+        keys.forEach(function (k) {
+            var p = parseDateKey(k);
+            if (!p || p.m < 1 || p.m > 12 || p.d < 1 || p.d > 31) return;
+            if (p.y) out[k] = ymdKey(p.y, p.m, p.d);
+            else seq.push({ k: k, m: p.m, d: p.d });
+        });
+        if (!seq.length) return out;
+        var off = 0, offs = [0];
+        for (var i = 1; i < seq.length; i++) {
+            if (seq[i].m < seq[i - 1].m - 6) off++;          // 12 → 1：跨年
+            offs.push(off);
+        }
+        var mid = Math.floor(seq.length / 2), best = null;
+        for (var y = refDate.getFullYear() - 1; y <= refDate.getFullYear() + 1; y++) {
+            var t = new Date(y + offs[mid], seq[mid].m - 1, seq[mid].d).getTime();
+            var dist = Math.abs(t - refDate.getTime());
+            if (!best || dist < best.dist) best = { y: y, dist: dist };
+        }
+        seq.forEach(function (s, j) { out[s.k] = ymdKey(best.y + offs[j], s.m, s.d); });
+        return out;
+    }
+    // 把一组班表行的日期列名改写成 YYYY-MM-DD（旧数据迁移、导入时统一调用）
+    function normalizeShiftRows(rows, refDate) {
+        if (!Array.isArray(rows) || !rows.length) return { rows: rows || [], changed: false };
+        var all = {};
+        rows.forEach(function (r) { if (r && typeof r === 'object') Object.keys(r).forEach(function (k) { all[k] = 1; }); });
+        var keys = Object.keys(all);
+        var map = inferDateKeys(keys, refDate), changed = false;
+        keys.forEach(function (k) { if (map[k] && map[k] !== k) changed = true; });
+        if (!changed) return { rows: rows, changed: false };
+        var out = rows.map(function (r) {
+            if (!r || typeof r !== 'object') return r;
+            var n = {};
+            Object.keys(r).forEach(function (k) {
+                var nk = map[k] || k;
+                if (n[nk] === undefined || String(n[nk]).trim() === '') n[nk] = r[k];
+            });
+            return n;
+        });
+        return { rows: out, changed: true };
+    }
+    // 班表行的「人」标识：英文名优先，其次中文名、企业名（用于多次导入合并）
+    function shiftRowKey(r) {
+        if (!r || typeof r !== 'object') return '';
+        var keys = Object.keys(r), pick = function (re) {
+            for (var i = 0; i < keys.length; i++) if (re.test(keys[i])) { var v = String(r[keys[i]] || '').trim(); if (v) return v; }
+            return '';
+        };
+        return (pick(/英文/) || pick(/中文|姓名/) || pick(/企业/)).toLowerCase();
+    }
+    // 合并新旧班表：同一个人按日期合并（同一天以新导入为准），旧数据里的其他日期、其他人保留
+    function mergeShiftRows(oldRows, newRows) {
+        var out = [], idx = {};
+        (oldRows || []).forEach(function (r) {
+            var k = shiftRowKey(r);
+            if (!k) return;                       // 没有姓名的旧行（表尾说明等）以新导入为准
+            idx[k] = out.length; out.push(Object.assign({}, r));
+        });
+        (newRows || []).forEach(function (r) {
+            var k = shiftRowKey(r);
+            if (k && idx[k] !== undefined) {
+                var cur = out[idx[k]];
+                Object.keys(r).forEach(function (f) {
+                    var v = r[f];
+                    if (isYmdKey(f)) { if (String(v == null ? '' : v).trim() !== '') cur[f] = v; }
+                    else if (String(v == null ? '' : v).trim() !== '') cur[f] = v;
+                });
+            } else {
+                if (k) idx[k] = out.length;
+                out.push(Object.assign({}, r));
+            }
+        });
+        return out;
+    }
+    // 一组行里的日期范围（用于导入提示）
+    function shiftDateRange(rows) {
+        var ks = {};
+        (rows || []).forEach(function (r) { if (r) Object.keys(r).forEach(function (k) { if (isYmdKey(k)) ks[k] = 1; }); });
+        var list = Object.keys(ks).sort();
+        return list.length ? { from: list[0], to: list[list.length - 1], days: list.length } : null;
+    }
+
     function readFile(file, callback) {
         var ext = file.name.split('.').pop().toLowerCase();
         if (!['csv', 'xlsx', 'xls'].includes(ext)) {
             callback(new Error('请上传 CSV 或 Excel 文件'), null, ext);
+            return;
+        }
+        if (ext !== 'csv' && typeof XLSX === 'undefined') {
+            // 主页按需加载 xlsx：网络慢时用户可能在库下载完成前就选了文件
+            ensureXlsx().then(function () { readFile(file, callback); },
+                function () { callback(new Error('Excel 解析库加载失败，请检查网络后重试'), null, ext); });
             return;
         }
         var reader = new FileReader();
@@ -271,7 +400,7 @@ var DC = (function() {
             var data;
             try {
                 if (ext === 'csv') {
-                    data = parseCSV(ev.target.result);
+                    data = parseCSV(decodeText(ev.target.result));
                 } else {
                     var wb = XLSX.read(ev.target.result, { type: 'array' });
                     var ws = wb.Sheets[wb.SheetNames[0]];
@@ -286,7 +415,7 @@ var DC = (function() {
         reader.onerror = function() {
             callback(new Error('文件读取失败'), null, ext);
         };
-        ext === 'csv' ? reader.readAsText(file, 'UTF-8') : reader.readAsArrayBuffer(file);
+        reader.readAsArrayBuffer(file);   // CSV 也按二进制读，交给 decodeText 识别 UTF-8 / GBK
     }
 
     // ── 分页表格渲染（XSS 安全） ──
@@ -484,6 +613,17 @@ var DC = (function() {
         excelSerialToParts: excelSerialToParts,
         setupDragDrop: setupDragDrop,
         readFile: readFile,
+        ensureXlsx: ensureXlsx,
+        decodeText: decodeText,
+        localDateStr: localDateStr,
+        parseDateKey: parseDateKey,
+        ymdKey: ymdKey,
+        isYmdKey: isYmdKey,
+        inferDateKeys: inferDateKeys,
+        normalizeShiftRows: normalizeShiftRows,
+        shiftRowKey: shiftRowKey,
+        mergeShiftRows: mergeShiftRows,
+        shiftDateRange: shiftDateRange,
         createPagination: createPagination,
         exportToExcel: exportToExcel,
         renderStats: renderStats,

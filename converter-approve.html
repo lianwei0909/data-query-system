@@ -95,8 +95,6 @@
         .notification.success { background:rgba(16,185,129,.2); border:1px solid rgba(16,185,129,.5); color:#6ee7b7; }
         .notification.error { background:rgba(239,68,68,.2); border:1px solid rgba(239,68,68,.5); color:#fca5a5; }
     </style>
-<meta name="omega:scene" content="webpage">
-<meta name="omega:version" content="1">
 </head>
 <body>
 <a href="index.html" class="btn-back">← 返回主页</a>
@@ -236,22 +234,19 @@
 
     // ── 导出 ──
     function startConvert() {
+        if (!parsedData.length) { DC.showNotification('请先上传文件', 'error'); return; }
         DC.showLoader('正在生成 Excel 文件...');
-        document.getElementById('previewSection').classList.remove('active');
-
-        setTimeout(function() {
-            try {
-                var fileName = EXPORT_FILE_PREFIX + new Date().toISOString().slice(0, 10) + '.xlsx';
-                // 先隐藏加载层、弹出成功提示，再触发下载（避免浏览器下载吞掉通知动画）
-                DC.hideLoader();
-                DC.showNotification('✅ 转换完成！正在下载 ' + fileName);
-                DC.exportToExcel(parsedData, OUTPUT_COLS, fileName);
-                setTimeout(resetAll, 3000);
-            } catch(err) {
-                DC.hideLoader();
-                DC.showNotification('转换失败：' + err.message, 'error');
-            }
-        }, 800);
+        // 先确保 Excel 库就绪 → 导出成功后再提示；不再先报成功、不再人为延迟、不再自动清空（方便再次导出）
+        DC.ensureXlsx().then(function () {
+            // 文件名用本地日期（toISOString 是 UTC，北京时间 0~8 点会变成前一天）
+            var fileName = EXPORT_FILE_PREFIX + DC.localDateStr() + '.xlsx';
+            DC.exportToExcel(parsedData, OUTPUT_COLS, fileName);
+            DC.hideLoader();
+            DC.showNotification('✅ 已导出 ' + fileName + '（共 ' + parsedData.length + ' 条）');
+        }).catch(function (err) {
+            DC.hideLoader();
+            DC.showNotification('转换失败：' + ((err && err.message) || err), 'error');
+        });
     }
 
     function resetAll() {
@@ -265,83 +260,5 @@
     document.getElementById('fileInput').addEventListener('change', function() {
         if (this.files && this.files[0]) handleFile(this.files[0]);
     });
-</script><style data-omega-edit-layer>
-[contenteditable="true"]{outline:2px dashed rgba(37,99,235,.7);outline-offset:2px;border-radius:3px;cursor:text;}
-.omega-edit-hotzone{position:fixed;top:0;left:0;width:84px;height:84px;z-index:2147483200;}
-.omega-edit-toggle{position:fixed;top:16px;left:16px;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;background:rgba(20,20,28,.72);color:#fff;font-size:15px;line-height:34px;text-align:center;padding:0;z-index:2147483200;opacity:0;pointer-events:none;transition:opacity .18s;font-family:system-ui,sans-serif;}
-.omega-edit-toggle.is-visible{opacity:1;pointer-events:auto;}
-.omega-edit-toggle.is-editing{background:#2563eb;}
-.omega-edit-flash{position:fixed;top:18px;left:60px;background:rgba(37,99,235,.92);color:#fff;font:13px/1 system-ui,sans-serif;padding:7px 12px;border-radius:7px;z-index:2147483200;opacity:0;transition:opacity .2s;pointer-events:none;}
-.omega-edit-flash.is-show{opacity:1;}
-body.omega-editing [data-omega-dynamic],body.omega-editing [data-query-id]{outline:1px dashed rgba(148,163,184,.5);outline-offset:3px;}
-@media print{.omega-edit-hotzone,.omega-edit-toggle,.omega-edit-flash{display:none!important;}}
-</style>
-<script data-omega-edit-layer>
-(function(){
-  var W=window;var NS=W.__OMEGA__=W.__OMEGA__||{};
-  if(NS.__editLayerReady)return;NS.__editLayerReady=true;
-  // 不可改字的标签（媒体/脚本/表单控件/矢量）：这些没有「直接可读文本」语义,或编辑会破坏结构。
-  var SKIP_TAGS={SCRIPT:1,STYLE:1,NOSCRIPT:1,SVG:1,CANVAS:1,IMG:1,IFRAME:1,VIDEO:1,AUDIO:1,SELECT:1,TEXTAREA:1,INPUT:1,BR:1,HR:1};
-  // 元素是否拥有「直接文本节点」（非空白）。这是「全部文字可改」的核心判据——
-  // 不再靠标签白名单（div/section 里的正文同样命中），与 frontend-slides 一致。
-  function hasOwnText(el){
-    var ns=el.childNodes;
-    for(var i=0;i<ns.length;i++){var c=ns[i];if(c.nodeType===3&&c.nodeValue&&c.nodeValue.replace(/\s+/g,'').length)return true;}
-    return false;
-  }
-  var editing=false,hideTimer=null;
-  var hot=document.createElement('div');hot.className='omega-edit-hotzone';hot.setAttribute('data-omega-edit-ui','');document.body.appendChild(hot);
-  var toggle=document.createElement('button');toggle.className='omega-edit-toggle';toggle.textContent='\u270e';toggle.title='编辑 (E)';toggle.setAttribute('data-omega-edit-ui','');document.body.appendChild(toggle);
-  var flash=document.createElement('div');flash.className='omega-edit-flash';flash.setAttribute('data-omega-edit-ui','');document.body.appendChild(flash);
-  function showToggle(){if(hideTimer){clearTimeout(hideTimer);hideTimer=null;}toggle.classList.add('is-visible');}
-  // 用 JS + 400ms 宽限,不用 CSS ~ 兄弟选择器:按钮 pointer-events 会断 hover 链。
-  function scheduleHide(){if(editing)return;hideTimer=setTimeout(function(){toggle.classList.remove('is-visible');},400);}
-  hot.addEventListener('mouseenter',showToggle);hot.addEventListener('mouseleave',scheduleHide);
-  toggle.addEventListener('mouseenter',showToggle);toggle.addEventListener('mouseleave',scheduleHide);
-  function setEditable(on){editing=on;NS.editing=on;toggle.classList.toggle('is-editing',on);document.body.classList.toggle('omega-editing',on);if(on){showToggle();}else{scheduleHide();}
-    if(!on){Array.prototype.forEach.call(document.body.querySelectorAll('[contenteditable="true"]'),function(el){el.removeAttribute('contenteditable');});return;}
-    var els=document.body.querySelectorAll('*');
-    Array.prototype.forEach.call(els,function(el){
-      if(SKIP_TAGS[el.tagName])return;
-      if(el.closest('[data-omega-edit-ui]'))return;
-      if(el.closest('svg'))return;
-      // 动态区(运行时数据驱动的图表/数字:data-query-id;或显式标注 data-omega-dynamic)不可内联改字——
-      // 「改了白改」(下次查询刷回),且改后无法回写到数据源。编辑态仅给视觉提示(见 .omega-editing 样式)。
-      if(el.closest('[data-omega-dynamic],[data-query-id]'))return;
-      // 自身无直接文本 → 跳过(纯布局容器,其文本子节点会各自命中)。
-      if(!hasOwnText(el))return;
-      // 祖先已可编辑 → 跳过:contenteditable 向下级联,避免重复虚线框与嵌套编辑冲突。
-      // 文档序遍历保证祖先先于后代被标记,故只需看 parentElement.closest。
-      if(el.parentElement&&el.parentElement.closest('[contenteditable="true"]'))return;
-      el.setAttribute('contenteditable','true');});}
-  function flashMsg(t){flash.textContent=t;flash.classList.add('is-show');setTimeout(function(){flash.classList.remove('is-show');},1200);}
-  NS.flashMsg=flashMsg;
-  // 序列化整份文档:剥编辑态 + 删运行期 UI + deck 还原钩子。回写唯一真相源 = HTML。
-  function serialize(){
-    var root=document.documentElement.cloneNode(true);
-    Array.prototype.forEach.call(root.querySelectorAll('[data-omega-edit-ui]'),function(e){if(e.parentNode)e.parentNode.removeChild(e);});
-    Array.prototype.forEach.call(root.querySelectorAll('[contenteditable]'),function(e){e.removeAttribute('contenteditable');});
-    // 动态数据容器(data-query-id)清空已渲染图表 DOM(echarts canvas 等):重载时 loadData() 会重新渲染。
-    // 否则冻结的图表 DOM 会让二次 echarts.init 在同一容器叠加/损坏(重载双重渲染)。仅改克隆,不动 live 文档。
-    Array.prototype.forEach.call(root.querySelectorAll('[data-query-id]'),function(e){e.innerHTML='';});
-    Array.prototype.forEach.call(root.querySelectorAll('.omega-editing'),function(e){e.classList.remove('omega-editing');});
-    if(typeof NS.normalizeSerializedRoot==='function'){try{NS.normalizeSerializedRoot(root);}catch(_e){}}
-    return '<!DOCTYPE html>\n'+root.outerHTML;
-  }
-  function save(){
-    var html=serialize();
-    if(W.parent&&W.parent!==W){try{W.parent.postMessage({type:'omega:artifact-edit',html:html},'*');}catch(_e){}flashMsg('已保存');return;}
-    try{var blob=new Blob([html],{type:'text/html'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=(document.title||'omega')+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);flashMsg('已下载');}catch(_e){flashMsg('保存失败');}
-  }
-  NS.save=save;
-  toggle.addEventListener('click',function(){setEditable(!editing);});
-  window.addEventListener('keydown',function(e){
-    var t=e.target||{};var tag=(t.tagName||'').toUpperCase();
-    if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')){e.preventDefault();save();return;}
-    if(t.isContentEditable||tag==='INPUT'||tag==='TEXTAREA')return;
-    if(e.key==='e'||e.key==='E'){setEditable(!editing);}
-  });
-})();
-</script>
-</body>
+</script></body>
 </html>

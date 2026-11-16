@@ -52,8 +52,6 @@
         .btn-back:hover { background:rgba(255,255,255,.15); border-color:rgba(255,255,255,.35); transform:translateY(-2px); }
         @media (max-width: 1500px) { .container { width:100%; min-width:auto; padding:30px 24px; } }
     </style>
-<meta name="omega:scene" content="webpage">
-<meta name="omega:version" content="1">
 </head>
 <body>
 <a href="index.html" class="btn-back">← 返回主页</a>
@@ -96,8 +94,12 @@
     var importedData = [];
 
     // 全局阻止浏览器默认拖放行为（否则文件会被直接下载）
-    document.addEventListener('dragover', function(e) { e.preventDefault(); });
-    document.addEventListener('drop', function(e) { e.preventDefault(); });
+    // 子页面每次进入都会重新执行本脚本，全局监听只挂一次，避免越积越多
+    if (!window.__dqsImportDropGuard) {
+        window.__dqsImportDropGuard = true;
+        document.addEventListener('dragover', function(e) { e.preventDefault(); });
+        document.addEventListener('drop', function(e) { e.preventDefault(); });
+    }
 
     // 仅在上传区域内处理文件拖放
     zone.addEventListener('dragover', function(e) {
@@ -174,7 +176,8 @@
                 // ✅ 修复 Bug 2：CSV/TXT 用字符串解析，Excel 用 ArrayBuffer
                 // 注意：不能用 raw:true，否则日期列会变成 Excel 序号数字而非日期字符串
                 if (ext === 'csv' || ext === 'txt') {
-                    workbook = XLSX.read(e.target.result, { type: 'string' });
+                    // 二进制读入后识别 UTF-8 / GBK（中文 Excel 另存的 CSV 多为 GBK，直接按 UTF-8 读会乱码）
+                    workbook = XLSX.read(DC.decodeText(e.target.result), { type: 'string' });
                 } else {
                     var data = new Uint8Array(e.target.result);
                     workbook = XLSX.read(data, { type: 'array' });
@@ -334,6 +337,10 @@
                     return newRow;
                 });
 
+                // 日期列统一成带年份的 YYYY-MM-DD（「11月21日」这类没有年份的列按排班周期推断年份），
+                // 主页按完整日期查询，不同年份同月同日不再串
+                finalData = DC.normalizeShiftRows(finalData).rows;
+
                 importedData = finalData;
                 renderTable(finalData);
                 DC.showNotification('✅ 成功解析 ' + finalData.length + ' 条（检测到 ' + dateColCount + ' 个日期列）', 'success');
@@ -353,14 +360,25 @@
             DC.showNotification('❌ 文件读取失败，请重试', 'error');
         };
 
-        if (ext === 'csv' || ext === 'txt') { reader.readAsText(file); }
-        else { reader.readAsArrayBuffer(file); }
+        // Excel 解析库是按需加载的：网络慢时先等库就绪再解析
+        DC.ensureXlsx().then(function () { reader.readAsArrayBuffer(file); }, function () {
+            DC.showNotification('❌ Excel 解析库加载失败，请检查网络后重试', 'error');
+        });
     }
 
     function doImport() {
         try {
-            localStorage.setItem('importedShiftData', JSON.stringify(importedData));
-            DC.showNotification('✅ 导入完成！共 ' + importedData.length + ' 条数据（将在主页展示）', 'success');
+            // 与已导入的班表合并：同一个人按日期合并（同一天以本次为准），其他周期的数据保留
+            var oldRows = [];
+            try { oldRows = JSON.parse(localStorage.getItem('importedShiftData') || '[]'); } catch (e) { oldRows = []; }
+            if (!Array.isArray(oldRows)) oldRows = [];
+            oldRows = DC.normalizeShiftRows(oldRows).rows;
+            var merged = DC.mergeShiftRows(oldRows, importedData);
+            localStorage.setItem('importedShiftData', JSON.stringify(merged));
+            var rg = DC.shiftDateRange(importedData), all = DC.shiftDateRange(merged);
+            DC.showNotification('✅ 导入完成：本次 ' + importedData.length + ' 行' +
+                (rg ? '（' + rg.from + ' ~ ' + rg.to + '）' : '') +
+                (oldRows.length ? '，已与原有班表合并' + (all ? '，现有数据 ' + all.from + ' ~ ' + all.to : '') : ''), 'success');
             // 完整重置上传区域状态，为下次上传做好准备
             setTimeout(function() {
                 var ts = document.getElementById('table-section');
@@ -384,84 +402,6 @@
             }
         }
     }
-</script>
-<style data-omega-edit-layer>
-[contenteditable="true"]{outline:2px dashed rgba(37,99,235,.7);outline-offset:2px;border-radius:3px;cursor:text;}
-.omega-edit-hotzone{position:fixed;top:0;left:0;width:84px;height:84px;z-index:2147483200;}
-.omega-edit-toggle{position:fixed;top:16px;left:16px;width:34px;height:34px;border-radius:50%;border:0;cursor:pointer;background:rgba(20,20,28,.72);color:#fff;font-size:15px;line-height:34px;text-align:center;padding:0;z-index:2147483200;opacity:0;pointer-events:none;transition:opacity .18s;font-family:system-ui,sans-serif;}
-.omega-edit-toggle.is-visible{opacity:1;pointer-events:auto;}
-.omega-edit-toggle.is-editing{background: linear-gradient(135deg, #0f0f12 0%, #18181b 50%, #1c1c1f 100%);}
-.omega-edit-flash{position:fixed;top:18px;left:60px;background:rgba(37,99,235,.92);color:#fff;font:13px/1 system-ui,sans-serif;padding:7px 12px;border-radius:7px;z-index:2147483200;opacity:0;transition:opacity .2s;pointer-events:none;}
-.omega-edit-flash.is-show{opacity:1;}
-body.omega-editing [data-omega-dynamic],body.omega-editing [data-query-id]{outline:1px dashed rgba(148,163,184,.5);outline-offset:3px;}
-@media print{.omega-edit-hotzone,.omega-edit-toggle,.omega-edit-flash{display:none!important;}}
-</style>
-<script data-omega-edit-layer>
-(function(){
-  var W=window;var NS=W.__OMEGA__=W.__OMEGA__||{};
-  if(NS.__editLayerReady)return;NS.__editLayerReady=true;
-  // 不可改字的标签（媒体/脚本/表单控件/矢量）：这些没有「直接可读文本」语义,或编辑会破坏结构。
-  var SKIP_TAGS={SCRIPT:1,STYLE:1,NOSCRIPT:1,SVG:1,CANVAS:1,IMG:1,IFRAME:1,VIDEO:1,AUDIO:1,SELECT:1,TEXTAREA:1,INPUT:1,BR:1,HR:1};
-  // 元素是否拥有「直接文本节点」（非空白）。这是「全部文字可改」的核心判据——
-  // 不再靠标签白名单（div/section 里的正文同样命中），与 frontend-slides 一致。
-  function hasOwnText(el){
-    var ns=el.childNodes;
-    for(var i=0;i<ns.length;i++){var c=ns[i];if(c.nodeType===3&&c.nodeValue&&c.nodeValue.replace(/\s+/g,'').length)return true;}
-    return false;
-  }
-  var editing=false,hideTimer=null;
-  var hot=document.createElement('div');hot.className='omega-edit-hotzone';hot.setAttribute('data-omega-edit-ui','');document.body.appendChild(hot);
-  var toggle=document.createElement('button');toggle.className='omega-edit-toggle';toggle.textContent='\u270e';toggle.title='编辑 (E)';toggle.setAttribute('data-omega-edit-ui','');document.body.appendChild(toggle);
-  var flash=document.createElement('div');flash.className='omega-edit-flash';flash.setAttribute('data-omega-edit-ui','');document.body.appendChild(flash);
-  function showToggle(){if(hideTimer){clearTimeout(hideTimer);hideTimer=null;}toggle.classList.add('is-visible');}
-  // 用 JS + 400ms 宽限,不用 CSS ~ 兄弟选择器:按钮 pointer-events 会断 hover 链。
-  function scheduleHide(){if(editing)return;hideTimer=setTimeout(function(){toggle.classList.remove('is-visible');},400);}
-  hot.addEventListener('mouseenter',showToggle);hot.addEventListener('mouseleave',scheduleHide);
-  toggle.addEventListener('mouseenter',showToggle);toggle.addEventListener('mouseleave',scheduleHide);
-  function setEditable(on){editing=on;NS.editing=on;toggle.classList.toggle('is-editing',on);document.body.classList.toggle('omega-editing',on);if(on){showToggle();}else{scheduleHide();}
-    if(!on){Array.prototype.forEach.call(document.body.querySelectorAll('[contenteditable="true"]'),function(el){el.removeAttribute('contenteditable');});return;}
-    var els=document.body.querySelectorAll('*');
-    Array.prototype.forEach.call(els,function(el){
-      if(SKIP_TAGS[el.tagName])return;
-      if(el.closest('[data-omega-edit-ui]'))return;
-      if(el.closest('svg'))return;
-      // 动态区(运行时数据驱动的图表/数字:data-query-id;或显式标注 data-omega-dynamic)不可内联改字——
-      // 「改了白改」(下次查询刷回),且改后无法回写到数据源。编辑态仅给视觉提示(见 .omega-editing 样式)。
-      if(el.closest('[data-omega-dynamic],[data-query-id]'))return;
-      // 自身无直接文本 → 跳过(纯布局容器,其文本子节点会各自命中)。
-      if(!hasOwnText(el))return;
-      // 祖先已可编辑 → 跳过:contenteditable 向下级联,避免重复虚线框与嵌套编辑冲突。
-      // 文档序遍历保证祖先先于后代被标记,故只需看 parentElement.closest。
-      if(el.parentElement&&el.parentElement.closest('[contenteditable="true"]'))return;
-      el.setAttribute('contenteditable','true');});}
-  function flashMsg(t){flash.textContent=t;flash.classList.add('is-show');setTimeout(function(){flash.classList.remove('is-show');},1200);}
-  NS.flashMsg=flashMsg;
-  // 序列化整份文档:剥编辑态 + 删运行期 UI + deck 还原钩子。回写唯一真相源 = HTML。
-  function serialize(){
-    var root=document.documentElement.cloneNode(true);
-    Array.prototype.forEach.call(root.querySelectorAll('[data-omega-edit-ui]'),function(e){if(e.parentNode)e.parentNode.removeChild(e);});
-    Array.prototype.forEach.call(root.querySelectorAll('[contenteditable]'),function(e){e.removeAttribute('contenteditable');});
-    // 动态数据容器(data-query-id)清空已渲染图表 DOM(echarts canvas 等):重载时 loadData() 会重新渲染。
-    // 否则冻结的图表 DOM 会让二次 echarts.init 在同一容器叠加/损坏(重载双重渲染)。仅改克隆,不动 live 文档。
-    Array.prototype.forEach.call(root.querySelectorAll('[data-query-id]'),function(e){e.innerHTML='';});
-    Array.prototype.forEach.call(root.querySelectorAll('.omega-editing'),function(e){e.classList.remove('omega-editing');});
-    if(typeof NS.normalizeSerializedRoot==='function'){try{NS.normalizeSerializedRoot(root);}catch(_e){}}
-    return '<!DOCTYPE html>\n'+root.outerHTML;
-  }
-  function save(){
-    var html=serialize();
-    if(W.parent&&W.parent!==W){try{W.parent.postMessage({type:'omega:artifact-edit',html:html},'*');}catch(_e){}flashMsg('已保存');return;}
-    try{var blob=new Blob([html],{type:'text/html'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=(document.title||'omega')+'.html';document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(function(){URL.revokeObjectURL(url);},1000);flashMsg('已下载');}catch(_e){flashMsg('保存失败');}
-  }
-  NS.save=save;
-  toggle.addEventListener('click',function(){setEditable(!editing);});
-  window.addEventListener('keydown',function(e){
-    var t=e.target||{};var tag=(t.tagName||'').toUpperCase();
-    if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')){e.preventDefault();save();return;}
-    if(t.isContentEditable||tag==='INPUT'||tag==='TEXTAREA')return;
-    if(e.key==='e'||e.key==='E'){setEditable(!editing);}
-  });
-})();
 </script>
 </body>
 </html>

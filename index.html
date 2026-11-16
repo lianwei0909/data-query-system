@@ -29,7 +29,7 @@
   --orange:#FFB454;--orange-bg:rgba(255,180,84,.14);
   --purple:#B08BFF;--purple-bg:rgba(176,139,255,.14);
   --gold:#F7C84F;--gold-bg:rgba(247,200,79,.14);
-  --text-primary:#E9EDF5;--text-secondary:#94A0B8;--text-muted:#64708A;
+  --text-primary:#E9EDF5;--text-secondary:#94A0B8;--text-muted:#7C88A2;
   --radius:16px;--radius-sm:10px;
   --shadow:none;--shadow-hover:none;
   --day-bg:rgba(91,140,255,.16);--night-bg:rgba(255,180,84,.16);
@@ -51,7 +51,7 @@
   --orange:#E8892B;--orange-bg:rgba(232,137,43,.12);
   --purple:#8B5CF6;--purple-bg:rgba(139,92,246,.10);
   --gold:#B8860B;--gold-bg:rgba(184,134,11,.12);
-  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#8792A6;
+  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#6B778C;
   --shadow:0 4px 16px rgba(20,32,64,.06);
   --shadow-hover:0 6px 22px rgba(20,32,64,.10);
   --day-bg:rgba(59,108,246,.10);--night-bg:rgba(232,137,43,.12);
@@ -76,6 +76,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .nav-label{font-size:14px;font-weight:500;flex:1}
 .sidebar-divider{height:1px;background:var(--border-light);margin:6px 14px}
 :where(button,a,input,[tabindex]):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.cal-cell:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .sidebar-footer{margin-top:auto;padding:16px;border-top:1px solid var(--border)}
 /* 侧边栏底部：主题开关 */
 .sidebar-bottom{margin-top:auto;padding:12px 12px 14px;border-top:1px solid var(--border)}
@@ -370,17 +371,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .sub-page-body .notification.error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#fca5a5}
 
 /* STATS */
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stats-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
 .stat-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);padding:15px 16px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s}
 .stat-card:hover{border-color:var(--input-border);box-shadow:var(--shadow-hover)}
 .stat-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
 .stat-icon.blue{background:var(--accent-glow)}.stat-icon.green{background:var(--green-bg)}.stat-icon.orange{background:var(--orange-bg)}.stat-icon.purple{background:var(--purple-bg)}
 .stat-combo{color:var(--text-secondary);min-width:0}
+.stat-card .stat-info{min-width:0;flex:1}
 .stat-value{display:flex;align-items:baseline;gap:4px;line-height:1.1}
 .stat-combo .num{color:var(--text-primary);font-weight:700;font-size:26px;letter-spacing:-.01em}
 .stat-combo .unit{font-size:14px;color:var(--text-secondary);font-weight:500}
 .stat-combo .num.special{font-size:20px;line-height:1.3;white-space:normal}
 .stat-label{font-size:13px;color:var(--text-secondary);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-hint{display:block;margin-top:2px;font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* CONTENT GRID */
 #page-calendar{display:flex;flex-direction:column;min-height:100%}
@@ -573,7 +576,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 }
 /* 平板：日历独占一行，右侧栏移到下面 */
 @media (max-width:1199px){
-  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .stats-row{grid-template-columns:repeat(2,minmax(0,1fr))}
   .content-grid{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto;min-height:0}
   .side-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
   .side-col .detail-card,.side-col .board-panel:not(.collapsed){max-height:520px;min-height:0}
@@ -593,10 +596,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
   .main{margin-left:0;height:auto;min-height:100vh;padding-bottom:62px;overflow:visible}
   .topbar{height:auto;min-height:52px;padding:8px 14px;flex-wrap:wrap;gap:8px}
   .page-content{padding:14px}
-  .topbar-who{width:100%;margin-left:0}
-  .who-input{flex:1;width:auto}
-  .who-status{max-width:none}
-  .stats-row{grid-template-columns:repeat(2,1fr);gap:10px}
+  .topbar-who{width:100%;margin-left:0;flex-wrap:wrap}
+  .who-input{flex:1;width:auto;min-width:0}
+  /* 识别提示单独占一行，避免长文案把页面撑出横向滚动 */
+  .who-status{max-width:none;order:9;flex:1 0 100%}
+  .stats-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .stat-card{padding:12px;gap:10px}
   .stat-icon{width:38px;height:38px}
   .stat-combo .num{font-size:20px}
@@ -619,7 +623,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 </head>
 <body>
 <!-- Excel 解析库（约 860KB）改为按需加载：进入导入 / 过审 / 不过审 / 智能排班页时才下载，见 loadXlsx() -->
-<script src="common.js?v=4"></script><script>window.SHIFT_DATA = window.SHIFT_DATA || null;</script>
+<script src="common.js?v=11"></script><script src="holidays.js?v=11"></script><script>window.SHIFT_DATA = window.SHIFT_DATA || null;</script>
 
 <!-- SIDEBAR -->
 <aside class="sidebar">
@@ -632,7 +636,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
   </div>
   <div class="sidebar-section">
     <div class="sidebar-section-label">工作台</div>
-    <a class="nav-item active" href="javascript:void(0)" onclick="navigateTo('calendar')" data-page="calendar">
+    <a class="nav-item active" href="javascript:void(0)" onclick="navigateTo('calendar')" data-page="calendar" title="排班日历">
       <div class="nav-icon blue">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </div>
@@ -642,25 +646,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
   <div class="sidebar-divider"></div>
   <div class="sidebar-section">
     <div class="sidebar-section-label">功能</div>
-    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('approve')" data-page="approve">
+    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('approve')" data-page="approve" title="过审模块">
       <div class="nav-icon green">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <span class="nav-label">过审模块</span>
     </a>
-    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('reject')" data-page="reject">
+    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('reject')" data-page="reject" title="不过审模块">
       <div class="nav-icon red">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </div>
       <span class="nav-label">不过审模块</span>
     </a>
-    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('import')" data-page="import">
+    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('import')" data-page="import" title="数据导入">
       <div class="nav-icon gold">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f7c84f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
       </div>
       <span class="nav-label">数据导入</span>
     </a>
-    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('scheduler')" data-page="scheduler">
+    <a class="nav-item" href="javascript:void(0)" onclick="navigateTo('scheduler')" data-page="scheduler" title="智能排班">
       <div class="nav-icon orange">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="16" y2="14"/></svg>
       </div>
@@ -695,7 +699,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
       <span class="who-label">查看</span>
       <div class="who-avatar" id="who-avatar">?</div>
       <input type="text" id="who-input" class="who-input" list="who-options" placeholder="英文名 / 中文名" autocomplete="off" spellcheck="false">
-      <button type="button" id="who-clear" class="who-clear" title="清空">×</button>
+      <button type="button" id="who-clear" class="who-clear" title="清空" aria-label="清空查看人">×</button>
       <datalist id="who-options"></datalist>
     </div>
   </header>
@@ -708,25 +712,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
       <div class="stat-card">
         <div class="stat-icon blue"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 15 11 17 15 13"/></svg></div>
         <div class="stat-info">
-          <div class="stat-combo" id="stat-total-days"><div class="stat-value"><span class="num">14</span><span class="unit">天</span></div><div class="stat-label">本月出勤天数</div></div>
+          <div class="stat-combo" id="stat-total-days"><div class="stat-value"><span class="num">--</span></div><div class="stat-label">本月出勤天数</div></div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
         <div class="stat-info">
-          <div class="stat-combo" id="stat-present"><div class="stat-value"><span class="num">5</span><span class="unit">人</span></div><div class="stat-label">今日出勤人数</div></div>
+          <div class="stat-combo" id="stat-present"><div class="stat-value"><span class="num">--</span></div><div class="stat-label">今日出勤人数</div></div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon orange"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
         <div class="stat-info">
-          <div class="stat-combo" id="stat-rest-left"><div class="stat-value"><span class="num">2</span><span class="unit">天</span></div><div class="stat-label">距离休息还有</div></div>
+          <div class="stat-combo" id="stat-rest-left"><div class="stat-value"><span class="num">--</span></div><div class="stat-label">距离休息还有</div></div>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon purple"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/></svg></div>
         <div class="stat-info">
-          <div class="stat-combo" id="stat-pay-left"><div class="stat-value"><span class="num">3</span><span class="unit">天</span></div><div class="stat-label">距离发窝囊废还有</div></div>
+          <div class="stat-combo" id="stat-pay-left"><div class="stat-value"><span class="num">--</span></div><div class="stat-label">距离发窝囊废还有</div></div>
         </div>
       </div>
     </div>
@@ -845,9 +849,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 "use strict";
 
 // ═══════════════════════════════════════
-// 固定账号（登录功能已移除，换账号改这里）
+// 默认查看人：不再在源码里写死账号（公开仓库会泄露员工 ID），
+// 首次使用在右上角输入姓名，之后记在 localStorage（viewer_name）
 // ═══════════════════════════════════════
-var DEFAULT_USER = 'anweili';
+var DEFAULT_USER = '';
 try { sessionStorage.removeItem('currentUser'); } catch(e) {}
 
 // ═══════════════════════════════════════
@@ -863,7 +868,7 @@ var PAGE_MAP = {
 };
 
 // 子页面版本号：发版时改这里，浏览器缓存自动失效（原来每次都用 Date.now() 绕缓存，等于永不缓存）
-var SITE_VER = 'v10';
+var SITE_VER = 'v11';
 var pageCache = {};          // 会话内 HTML 缓存：来回切换不再重复请求
 var XLSX_URL = './xlsx.full.min.js';
 var xlsxPromise = null;
@@ -909,7 +914,9 @@ function navigateTo(page) {
 
     // 更新侧边栏 active 状态
     document.querySelectorAll('.nav-item').forEach(function(el){
-        el.classList.toggle('active', el.getAttribute('data-page') === page);
+        var on = el.getAttribute('data-page') === page;
+        el.classList.toggle('active', on);
+        if (on) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
     });
 
     // 更新面包屑：工作台 > 排班日历  或  功能 > 过审模块
@@ -978,8 +985,10 @@ function navigateTo(page) {
                         var css = s.textContent;
                         // 只过滤子页面的主 <style>（跳过 omega 编辑层的 style，它不需要注入）
                         if (css.indexOf('data-omega-edit-layer') >= 0 || css.indexOf('omega-edit') >= 0) return;
-                        css = css.replace(/html\s*\{[^}]*\}/g, '');
-                        css = css.replace(/body\s*\{[^}]*\}/g, '');
+                        css = css.replace(/(^|[\s,}])html\s*\{[^}]*\}/g, '$1');
+                        css = css.replace(/(^|[\s,}])body\s*\{[^}]*\}/g, '$1');
+                        // 子页面自带的 :root 变量是单独打开时用的暗色兜底，嵌入后会覆盖主框架的主题变量（亮色主题下出现暗色控件）
+                        css = css.replace(/(^|[\s,}]):root\s*\{[^}]*\}/g, '$1');
                         // 同时去掉 .bg-overlay 的全局定位（fixed 定位在嵌入模式下会错位）
                         css = css.replace(/\.bg-overlay\s*\{[^}]*\}/g, '');
                         var cleanStyle = document.createElement('style');
@@ -1044,7 +1053,7 @@ function navigateTo(page) {
                         // 格式提示
                         var hint = document.createElement('div');
                         hint.className = 'format-hint';
-                        hint.textContent = '支持 .csv / .xlsx / .xls 格式';
+                        hint.textContent = '支持 .csv / .txt / .xlsx / .xls 格式';
                         uploadZone.appendChild(hint);
                         uploadZone.style.border = 'none';
                         uploadZone.style.padding = '32px 0 0';
@@ -1082,13 +1091,25 @@ function navigateTo(page) {
 }
 
 // ═══════════════════════════════════════
+// 班表读取：按原始字符串做内存缓存（输入框每按一次键都会读，避免反复 JSON.parse）；
+// 旧版导入的数据日期列是「X月X日」（没有年份），首次读取时推断年份并迁移成 YYYY-MM-DD 写回
+var shiftCache = { raw: null, data: [] };
 function getShiftData() {
     if (window.SHIFT_DATA && Array.isArray(window.SHIFT_DATA) && window.SHIFT_DATA.length) return window.SHIFT_DATA;
-    try {
-        var dataStr = localStorage.getItem('importedShiftData');
-        if (dataStr) return JSON.parse(dataStr);
-    } catch(e) {}
-    return [];
+    var raw = null;
+    try { raw = localStorage.getItem('importedShiftData'); } catch(e) {}
+    if (!raw) { shiftCache = { raw: null, data: [] }; return []; }
+    if (raw === shiftCache.raw) return shiftCache.data;
+    var data = [];
+    try { data = JSON.parse(raw); } catch(e) { data = []; }
+    if (!Array.isArray(data)) data = [];
+    var norm = DC.normalizeShiftRows(data);
+    if (norm.changed){
+        data = norm.rows;
+        try { raw = JSON.stringify(data); localStorage.setItem('importedShiftData', raw); } catch(e) {}
+    }
+    shiftCache = { raw: raw, data: data };
+    return data;
 }
 
 var REST_TYPES = ['休','休息','off','年假','年','leave'];
@@ -1134,22 +1155,26 @@ function resolveNameCols(sample){
     return {cn:cn,eng:eng};
 }
 function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
-function getDateShift(row, month, day){
-    var keys = Object.keys(row);
-    for (var i=0;i<keys.length;i++){
-        var k = keys[i];
-        var m = String(k).match(/(\d+)年(\d+)月(\d+)日$/);
-        var mm, dd;
-        if (m) { mm=parseInt(m[2],10); dd=parseInt(m[3],10); }
-        else {
-            var m2 = String(k).match(/^(\d+)月(\d+)日$/);
-            if (!m2) continue;
-            mm=parseInt(m2[1],10); dd=parseInt(m2[2],10);
-        }
-        if (mm===month && dd===day) return String(row[k]||'').trim();
-    }
-    return '';
+// 取某人某天的班次：日期列统一为 YYYY-MM-DD（见 getShiftData 迁移），按完整日期查，不同年份同月同日不再串
+function getDateShift(row, year, month, day){
+    if (!row) return '';
+    var v = row[DC.ymdKey(year, month, day)];
+    if (v === undefined) v = row[month + '月' + day + '日'];   // 兜底：未迁移的旧键
+    return String(v == null ? '' : v).trim();
 }
+// 是否为真实人员行（排除表尾的值班行、说明行、班次说明行）——统计卡、明细面板、候选名单共用
+function isPersonRow(row, nc){
+    if (!row || typeof row !== 'object') return false;
+    var en = nc.eng ? String(row[nc.eng]||'').trim() : '';
+    var cn = nc.cn ? String(row[nc.cn]||'').trim() : '';
+    var name = cn || en;
+    if (!name || isSummaryRow(name)) return false;
+    if (nc.eng && !isEnglishName(en)) return false;
+    if (cn && isShiftLikeName(cn)) return false;
+    return true;
+}
+// 是否在岗：只有白班 / 夜班算出勤，休息、各类请假都不算
+function isOnDuty(v){ var c = classifyShift(v); return !!c && (c.k === 'day' || c.k === 'night'); }
 function findUserRow(data, user){
     if (!user) return null;
     var nc = data[0] ? resolveNameCols(data[0]) : {cn:null,eng:null};
@@ -1195,9 +1220,9 @@ function renderCalendar(year, month){
     var nav = document.createElement('div');
     nav.className = 'cal-nav';
     var prev = document.createElement('button');
-    prev.className = 'cal-nav-btn'; prev.textContent='◀'; prev.onclick=function(){ changeMonth(-1); };
+    prev.className = 'cal-nav-btn'; prev.type='button'; prev.textContent='◀'; prev.title='上个月'; prev.setAttribute('aria-label','上个月'); prev.onclick=function(){ changeMonth(-1); };
     var next = document.createElement('button');
-    next.className = 'cal-nav-btn'; next.textContent='▶'; next.onclick=function(){ changeMonth(1); };
+    next.className = 'cal-nav-btn'; next.type='button'; next.textContent='▶'; next.title='下个月'; next.setAttribute('aria-label','下个月'); next.onclick=function(){ changeMonth(1); };
     nav.appendChild(prev); nav.appendChild(next);
     // 月份标题旁的引导（由 displayUserShifts 填内容，空时自动隐藏）
     var hint = document.createElement('span');
@@ -1235,6 +1260,13 @@ function renderCalendar(year, month){
             cell.dataset.month = month + 1;
             cell.dataset.year = year;
             cell.addEventListener('click', function(){ showDayDetail(this); });
+            // 键盘可达：Tab 聚焦、Enter / 空格选中
+            cell.tabIndex = 0;
+            cell.setAttribute('role', 'button');
+            cell.setAttribute('aria-label', (month + 1) + '月' + dayNum + '日');
+            cell.addEventListener('keydown', function(e){
+                if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); showDayDetail(this); }
+            });
         }
         if (opts.isToday){ cell.classList.add('today'); }
         var dateEl = document.createElement('div');
@@ -1352,24 +1384,19 @@ function updateDetailPanel(year, month, day){
 
     var nameCols = resolveNameCols(data[0]);
     var cnCol = nameCols.cn, engCol = nameCols.eng;
-    var dateKey = month + '月' + day + '日';
     var viewer = String(currentUser || '').toLowerCase();
     var rowName = function(r){ return (cnCol ? String(r[cnCol]||'').trim() : '') || (engCol ? String(r[engCol]||'').trim() : ''); };
 
-    // 出勤人员：休息、请假都不算
+    // 出勤人员：休息、请假都不算（与统计卡「今日出勤人数」同一口径：isPersonRow + isOnDuty）
     var dayList = [], nightList = [];
     for (var i=0;i<data.length;i++){
         var row = data[i];
-        if (!row || typeof row !== 'object') continue;
+        if (!isPersonRow(row, nameCols)) continue;
         var name = rowName(row);
-        if (!name || isSummaryRow(name)) continue;
         var en = engCol ? String(row[engCol]||'').trim() : '';
-        var cnName = cnCol ? String(row[cnCol]||'').trim() : '';
-        if (engCol && !isEnglishName(en)) continue;           // 表尾说明行（早班1 等）没有英文名
-        if (cnName && isShiftLikeName(cnName)) continue;
-        var v = String(row[dateKey]||'').trim();
+        var v = getDateShift(row, year, month, day);
+        if (!isOnDuty(v)) continue;
         var c = classifyShift(v);
-        if (!c || c.k === 'rest' || c.k === 'leave') continue;
         var person = { name: name, shift: v, me: !!viewer && (en.toLowerCase() === viewer || name.toLowerCase() === viewer) };
         if (c.k === 'night') nightList.push(person); else dayList.push(person);
     }
@@ -1380,8 +1407,8 @@ function updateDetailPanel(year, month, day){
         var drow = data[j];
         if (!drow || typeof drow !== 'object') continue;
         var rawName = rowName(drow);
-        if (rawName.indexOf('白班值班') >= 0 || rawName.indexOf('争议白班') >= 0) dayDutyName = String(drow[dateKey]||'').trim();
-        if (rawName.indexOf('夜班值班') >= 0 || rawName.indexOf('争议夜班') >= 0) nightDutyName = String(drow[dateKey]||'').trim();
+        if (rawName.indexOf('白班值班') >= 0 || rawName.indexOf('争议白班') >= 0) dayDutyName = getDateShift(drow, year, month, day);
+        if (rawName.indexOf('夜班值班') >= 0 || rawName.indexOf('争议夜班') >= 0) nightDutyName = getDateShift(drow, year, month, day);
     }
     // 值班人：在当天出勤名单里找到就打徽章（徽章写明是白班值班还是夜班值班）；
     // 找不到（当天休息 / 请假 / 名字对不上）就不补进名单，避免把不在岗的人列成出勤
@@ -1472,115 +1499,100 @@ function renderStaffList(id, list, emptyText){
 // ═════════════════════════════════════
 function setText(id, v){ var el=document.getElementById(id); if(el) el.textContent = v; }
 
-// 2026 中国法定节假日（国务院办公厅公布）。off=放假日，work=周末补班日。每年需更新。
-var HOLIDAYS_2026 = {
-  off: new Set(['1-1','1-2','1-3','2-15','2-16','2-17','2-18','2-19','2-20','2-21','2-22','2-23','4-4','4-5','4-6','5-1','5-2','5-3','5-4','5-5','6-19','6-20','6-21','9-25','9-26','9-27','10-1','10-2','10-3','10-4','10-5','10-6','10-7']),
-  work: new Set(['1-4','2-14','2-28','5-9','9-20','10-10'])
-};
+// 法定节假日见 holidays.js（CN_HOLIDAYS，按年份配置，每年公布后补一个年份）；未配置的年份只按周末判断
+function holidayYear(y){ return (window.CN_HOLIDAYS && window.CN_HOLIDAYS[y]) || null; }
 function isWorkday(d){
-  var y=d.getFullYear(), m=d.getMonth()+1, day=d.getDate(), key=m+'-'+day;
-  if (y===2026){
-    if (HOLIDAYS_2026.off.has(key)) return false;
-    var dow=d.getDay();
-    if (dow===0||dow===6) return HOLIDAYS_2026.work.has(key); // 调休补班日算上班
+  var h = holidayYear(d.getFullYear()), key = (d.getMonth()+1) + '-' + d.getDate(), dow = d.getDay();
+  if (h){
+    if (h.off.indexOf(key) >= 0) return false;
+    if (dow===0||dow===6) return h.work.indexOf(key) >= 0;   // 调休补班日算上班
     return true;
   }
-  var dw=d.getDay(); // 非2026年无节假日数据，仅按周末判断
-  return !(dw===0||dw===6);
+  return !(dow===0||dow===6);
+}
+// 发薪日：每月 5 号，遇周六日或法定节假日提前到之前最近的工作日；
+// 本月发薪日已经过了（含提前发薪的情况）就取下个月 —— 原逻辑在「提前发薪后、5 号之前」会算出负数并显示「今天发」
+function nextPayday(today){
+  var t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  for (var k=0; k<3; k++){
+    var p = new Date(t0.getFullYear(), t0.getMonth() + k, 5);
+    for (var back=0; back<25 && !isWorkday(p); back++) p = new Date(p.getFullYear(), p.getMonth(), p.getDate() - 1);
+    if (p.getTime() >= t0.getTime()) return p;
+  }
+  return new Date(t0.getFullYear(), t0.getMonth() + 1, 5);
 }
 
 function updateStatsCards(data, year, month, day){
-    var totalDays = 20, present = 5, restLeft = 3, payLeft = 35;
-    if (data.length){
-        var userRow = findUserRow(data, currentUser);
-        if (userRow){
-            // 本月出勤天数：从上月21号（今天<21号）或本月21号（今天>=21号）算到今天，休息不计入
-            totalDays = 0;
-            var startYear = year, startMonth = month;
-            if (day < 21){
-                startMonth = month - 1;
-                if (startMonth < 1){ startMonth = 12; startYear = year - 1; }
-            }
-            var sDate = new Date(startYear, startMonth - 1, 21);
-            var eDate = new Date(year, month - 1, day);
-            var diffDays = Math.round((eDate.getTime() - sDate.getTime()) / 86400000);
-            for (var di=0; di<=diffDays; di++){
-                var cDate = new Date(startYear, startMonth - 1, 21 + di);
-                var cv = getDateShift(userRow, cDate.getMonth()+1, cDate.getDate());
-                if (cv && !isRest(cv)) totalDays++;
-            }
-            // 距离休息还有
-            restLeft = null;
-            for (var off=1; off<=31; off++){
-                var nd = new Date(year, month-1, day + off);
-                var nm = nd.getMonth()+1, nd2 = nd.getDate();
-                var sv = getDateShift(userRow, nm, nd2);
-                if (sv && isRest(sv)){ restLeft = off; break; }
-            }
-        }
-        present = 0;
-        var nameCols = resolveNameCols(data[0]);
-        var cnCol = nameCols.cn;
-        var engCol = nameCols.eng;
-        var dateKey = month + '月' + day + '日';
-        for (var i=0;i<data.length;i++){
-            var row=data[i];
-            if(!row||typeof row!=='object') continue;
-            var nm2 = (cnCol?String(row[cnCol]||'').trim():'') || (engCol?String(row[engCol]||'').trim():'');
-            if(!nm2||isSummaryRow(nm2)) continue;
-            var v2 = String(row[dateKey]||'').trim();
-            if(v2 && !isRest(v2)) present++;
-        }
-        // 距离发工资还有：固定每月5号，遇周六日或法定节假日提前至最后一个工作日（与个人班次无关）
-        payLeft = null;
-        var payYear = year, payMonth = month;
-        if (day > 5){
-            payMonth = month + 1;
-            if (payMonth > 12){ payMonth = 1; payYear = year + 1; }
-        }
-        var payDate = null;
-        for (var back=0; back<=25; back++){
-            var cand = new Date(payYear, payMonth - 1, 5 - back);
-            if (isWorkday(cand)){ payDate = cand; break; }
-        }
-        if (!payDate) payDate = new Date(payYear, payMonth - 1, 5);
-        payLeft = Math.round((payDate.getTime() - new Date(year, month-1, day).getTime()) / 86400000);
-    }
-    // 统计卡统一结构：上面大数字 + 单位，下面小标签；特殊文案时大字显示文案
-    function statHtml(num, unit, label){
-        return '<div class="stat-value"><span class="num">'+num+'</span><span class="unit">'+unit+'</span></div><div class="stat-label">'+label+'</div>';
+    var today = new Date(year, month-1, day);
+    var userRow = data.length ? findUserRow(data, currentUser) : null;
+    // 没有数据时显示「--」+ 原因，不再用固定数字兜底
+    var noUserHint = !data.length ? '未导入班表' : (!currentUser ? '未选择查看人' : '班表中无此人');
+
+    function statHtml(num, unit, label, tip){
+        return '<div class="stat-value"><span class="num">'+num+'</span><span class="unit">'+unit+'</span></div><div class="stat-label"'+(tip?' title="'+escapeHtml(tip)+'"':'')+'>'+label+'</div>';
     }
     function statSpecial(text, label){
         return '<div class="stat-value"><span class="num special">'+text+'</span></div><div class="stat-label">'+label+'</div>';
     }
-    var el1=document.getElementById('stat-total-days'); if(el1) el1.innerHTML=statHtml(totalDays,'天','本月出勤天数');
-    var el2=document.getElementById('stat-present'); if(el2) el2.innerHTML=statHtml(present,'人','今日出勤人数');
-    var el3=document.getElementById('stat-rest-left');
-    if (el3){
-        // 检测今天是否为休息日
-        var todayIsRest = false;
+    function statEmpty(label, hint){
+        return '<div class="stat-value"><span class="num">--</span></div><div class="stat-label">'+label+'<span class="stat-hint">'+escapeHtml(hint)+'</span></div>';
+    }
+    var offDay = function(v){ var c = classifyShift(v); return !!c && (c.k === 'rest' || c.k === 'leave'); };
+
+    // ① 本月出勤天数：排班周期（上月21日 ~ 本月20日，今天 >= 21 号则从本月21日起）截至今天，只计白班 / 夜班
+    var el1 = document.getElementById('stat-total-days');
+    if (el1){
         if (userRow){
-            var todayShift = getDateShift(userRow, month, day);
-            if (todayShift && isRest(todayShift)) todayIsRest = true;
-        }
-        if (todayIsRest){
-            el3.innerHTML=statSpecial('要好好休息喔~','今天休息');
-        } else if (restLeft === 1){
-            el3.innerHTML=statSpecial('明天就休息啦！！！','距离休息还有 1 天');
+            var sDate = day < 21 ? new Date(year, month - 2, 21) : new Date(year, month - 1, 21);
+            var totalDays = 0;
+            for (var cd = new Date(sDate); cd <= today; cd.setDate(cd.getDate() + 1)){
+                if (isOnDuty(getDateShift(userRow, cd.getFullYear(), cd.getMonth()+1, cd.getDate()))) totalDays++;
+            }
+            el1.innerHTML = statHtml(totalDays, '天', '本月出勤天数', '统计周期：' + (sDate.getMonth()+1) + '/' + sDate.getDate() + ' 起，休息和请假不计入');
+        } else el1.innerHTML = statEmpty('本月出勤天数', noUserHint);
+    }
+
+    // ② 今日出勤人数：与右侧「当日出勤」明细同一口径（isPersonRow + isOnDuty）
+    var el2 = document.getElementById('stat-present');
+    if (el2){
+        if (data.length){
+            var nc = resolveNameCols(data[0]), present = 0;
+            for (var i=0;i<data.length;i++){
+                if (isPersonRow(data[i], nc) && isOnDuty(getDateShift(data[i], year, month, day))) present++;
+            }
+            el2.innerHTML = statHtml(present, '人', '今日出勤人数');
+        } else el2.innerHTML = statEmpty('今日出勤人数', '未导入班表');
+    }
+
+    // ③ 距离休息还有：今天之后第一个休息 / 请假日
+    var el3 = document.getElementById('stat-rest-left');
+    if (el3){
+        if (!userRow){
+            el3.innerHTML = statEmpty('距离休息还有', noUserHint);
+        } else if (offDay(getDateShift(userRow, year, month, day))){
+            el3.innerHTML = statSpecial('要好好休息喔~', '今天休息');
         } else {
-            el3.innerHTML=statHtml((restLeft==null?3:restLeft),'天','距离休息还有');
+            var restLeft = null;
+            for (var off=1; off<=31; off++){
+                var nd = new Date(year, month-1, day + off);
+                if (offDay(getDateShift(userRow, nd.getFullYear(), nd.getMonth()+1, nd.getDate()))){ restLeft = off; break; }
+            }
+            if (restLeft === 1) el3.innerHTML = statSpecial('明天就休息啦！！！', '距离休息还有 1 天');
+            else if (restLeft === null) el3.innerHTML = statEmpty('距离休息还有', '后续班表未排');
+            else el3.innerHTML = statHtml(restLeft, '天', '距离休息还有');
         }
     }
-    var el4=document.getElementById('stat-pay-left');
+
+    // ④ 距离发薪日：与班表无关，没有导入班表也照常计算
+    var el4 = document.getElementById('stat-pay-left');
     if (el4){
-        if (payLeft === null) payLeft = 35;
-        if (payLeft <= 0){
-            el4.innerHTML=statSpecial('首富已上位~有钱！消费！','今天发窝囊废');
-        } else if (payLeft === 1){
-            el4.innerHTML=statSpecial('明天就发赈灾粮啦！','距离发窝囊废还有 1 天');
-        } else {
-            el4.innerHTML=statHtml(payLeft,'天','距离发窝囊废还有');
-        }
+        var payDate = nextPayday(today);
+        var payLeft = Math.round((payDate.getTime() - today.getTime()) / 86400000);
+        var tip = '发薪日：' + (payDate.getMonth()+1) + '月' + payDate.getDate() + '日' +
+            (holidayYear(payDate.getFullYear()) ? '' : '（' + payDate.getFullYear() + ' 年法定节假日未配置，仅按周末推算）');
+        if (payLeft <= 0) el4.innerHTML = statSpecial('首富已上位~有钱！消费！', '今天发窝囊废');
+        else if (payLeft === 1) el4.innerHTML = statSpecial('明天就发赈灾粮啦！', '距离发窝囊废还有 1 天');
+        else el4.innerHTML = statHtml(payLeft, '天', '距离发窝囊废还有' + (holidayYear(payDate.getFullYear()) ? '' : ' *'), tip);
     }
 }
 
@@ -1610,21 +1622,6 @@ function displayUserShifts(){
     var userRow = findUserRow(data, currentUser);
     if (!userRow){ setHint(''); return; }
 
-    var shiftMap = {};
-    var keys = Object.keys(userRow);
-    for (var i=0;i<keys.length;i++){
-        var k = keys[i];
-        var m = String(k).match(/(\d+)年(\d+)月(\d+)日$/) || String(k).match(/^(\d+)月(\d+)日$/);
-        if (!m) continue;
-        var mm, dd;
-        if (m.length===4){ mm=parseInt(m[2],10); dd=parseInt(m[3],10); }
-        else { mm=parseInt(m[1],10); dd=parseInt(m[2],10); }
-        var v = String(userRow[k]||'').trim();
-        if (!v) continue;
-        if (!shiftMap[mm]) shiftMap[mm] = {};
-        shiftMap[mm][dd] = v;
-    }
-
     var mo = calMonth + 1;
     var now = new Date();
     var todayKey = now.getFullYear()*10000 + (now.getMonth()+1)*100 + now.getDate();
@@ -1633,7 +1630,7 @@ function displayUserShifts(){
     cells.forEach(function(cell){
         var d = parseInt(cell.querySelector('.cal-date').textContent, 10);
         if (!d) return;
-        var sv = shiftMap[mo] ? shiftMap[mo][d] : null;
+        var sv = getDateShift(userRow, calYear, mo, d) || null;   // 按「年-月-日」取，不同年份同月不再串
         // 今天及以后还没有班表的日子：记下第一天，用于月份标题旁的引导（重复调用时也要算）
         if (!sv && calYear*10000 + mo*100 + d >= todayKey && !firstMissing) firstMissing = d;
         if (cell.querySelector('.cal-shift')) return;   // 已标注过，不重复加
@@ -1651,6 +1648,7 @@ function displayUserShifts(){
         tag.textContent = c.t;
         tag.title = sv;                 // 悬停显示完整班次名，如「小夜班3」「年假」
         cell.title = mo + '月' + d + '日：' + sv;
+        cell.setAttribute('aria-label', mo + '月' + d + '日 ' + sv);
         cell.setAttribute('data-s', c.k);
         cell.appendChild(tag);
     });
@@ -1711,7 +1709,7 @@ function listPeople(data){
         var key = en.toLowerCase();
         if (seen[key]) continue;
         // 必须至少有一个日期格有值，排除表尾说明行
-        var hasShift = Object.keys(r).some(function(k){ return /月\d+日$/.test(k) && String(r[k]||'').trim(); });
+        var hasShift = Object.keys(r).some(function(k){ return (DC.isYmdKey(k) || /月\d+日$/.test(k)) && String(r[k]||'').trim(); });
         if (!hasShift) continue;
         seen[key] = 1;
         out.push({ cn: cn, en: en, row: r });
@@ -2177,10 +2175,20 @@ function saveBoardCanvas(){
   try { localStorage.setItem('board_canvas', board.canvas.toDataURL('image/png')); updateBoardPreview(); } catch(err){
     // 存储空间不足时提示用户，不再静默失败
     console.warn('画板保存失败（可能超出 localStorage 限制）:', err.message);
+    notifyStorageFull('手写内容');
   }
 }
+// 浏览器存储满时提示一次（原来只打 console.warn，用户不知道内容没保存上）
+var storageFullNotified = 0;
+function notifyStorageFull(what){
+  var now = Date.now();
+  if (now - storageFullNotified < 10000) return;
+  storageFullNotified = now;
+  if (window.DC && DC.showNotification) DC.showNotification('⚠ ' + what + '未能保存：浏览器存储空间已满，请删除部分便签图片后重试', 'error');
+}
 function saveMemo(){
-  localStorage.setItem('board_memo', document.getElementById('board-memo').value);
+  try { localStorage.setItem('board_memo', document.getElementById('board-memo').value); }
+  catch(err){ notifyStorageFull('便签文字'); }
   updateBoardPreview();
 }
 function applyMemoColor(color){
@@ -2201,7 +2209,7 @@ function loadPastedImages(){
 }
 function saveImages(){
   try { localStorage.setItem('board_images', JSON.stringify(pastedImages)); updateBoardPreview(); }
-  catch(err){ console.warn('图片保存失败（可能超出 localStorage 限制）:', err.message); }
+  catch(err){ console.warn('图片保存失败（可能超出 localStorage 限制）:', err.message); notifyStorageFull('粘贴的图片'); }
 }
 function renderPastedImages(){
   if (!board.stage) return;
@@ -2406,7 +2414,7 @@ function renderOverview(){
     }
     var cnt = { day:0, night:0, rest:0, leave:0 };
     for (var d = new Date(start); d <= end; d.setDate(d.getDate() + 1)){
-        var c = classifyShift(getDateShift(row, d.getMonth()+1, d.getDate()));
+        var c = classifyShift(getDateShift(row, d.getFullYear(), d.getMonth()+1, d.getDate()));
         if (c) cnt[c.k]++;
     }
     var rows = [['白班', cnt.day, 'day'], ['夜班', cnt.night, 'night'], ['休息', cnt.rest, 'rest'], ['请假', cnt.leave, 'leave']];
@@ -2451,7 +2459,10 @@ body.omega-editing [data-omega-dynamic],body.omega-editing [data-query-id]{outli
 <script data-omega-edit-layer>
 (function(){
   var W=window;var NS=W.__OMEGA__=W.__OMEGA__||{};
-  if(NS.__editLayerReady)return;NS.__editLayerReady=true;
+  if(NS.__editLayerReady)return;
+  // 线上默认关闭页面编辑层（隐藏热区 + 按 E 键整页可编辑）；需要时访问 index.html?edit=1 开启
+  if(!/[?&]edit=1(&|$)/.test(location.search))return;
+  NS.__editLayerReady=true;
   // 不可改字的标签（媒体/脚本/表单控件/矢量）：这些没有「直接可读文本」语义,或编辑会破坏结构。
   var SKIP_TAGS={SCRIPT:1,STYLE:1,NOSCRIPT:1,SVG:1,CANVAS:1,IMG:1,IFRAME:1,VIDEO:1,AUDIO:1,SELECT:1,TEXTAREA:1,INPUT:1,BR:1,HR:1};
   // 元素是否拥有「直接文本节点」（非空白）。这是「全部文字可改」的核心判据——

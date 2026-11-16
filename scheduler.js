@@ -32,18 +32,11 @@ var SCH = (function () {
         nightToDay: 900
     };
 
-    // nightBias = 往期排班统计出来的「夜班占其出勤的比例」，仅作软目标让夜班分配延续习惯（不是硬规则）
-    // 不再预置任何固定需求 / 隐藏偏好：每期的请假、必休、星期规律、班次偏好都以页面上输入的需求为准
-    var DEFAULT_PEOPLE = [
-        { en: 'kafewu', cn: '吴超', org: 'kafewu(吴超)', prefer: '', active: true, nightBias: 0.37, need: '' },
-        { en: 'cuijunfang', cn: '崔俊芳', org: 'cuijunfang(崔俊芳)', prefer: '', active: false, nightBias: 0, need: '' },
-        { en: 'nomadshi', cn: '石浩东', org: 'nomadshi (石浩东)', prefer: '', active: true, nightBias: 0.43, need: '' },
-        { en: 'anweili', cn: '李安维', org: 'anweili(李安维)', prefer: '', active: true, nightBias: 0.50, need: '' },
-        { en: 'hanleywang', cn: '王汉明', org: 'hanleywang(王汉明)', prefer: '', active: true, nightBias: 0.77, need: '' },
-        { en: 'ventili', cn: '厉津睿', org: 'ventili(厉津睿)', prefer: '', active: true, nightBias: 0.62, need: '' },
-        { en: 'zaklin', cn: '林国宇', org: 'zaklin(林国宇)', prefer: '', active: true, nightBias: 0.77, need: '' }
-    ];
-    // 旧版本预置给厉津睿 / 林国宇的需求文字；老存档里若还是这句原文，加载时清空一次（见 loadPeople）
+    // nightBias = 往期班表里「夜班占其出勤的比例」，仅作软目标让夜班分配延续习惯（不是硬规则）
+    // 不在源码里预置任何人员（公开仓库会泄露员工姓名 / ID）：人员名单从「数据导入」的班表里提取，
+    // 见 peopleFromImported()；每期的请假、必休、星期规律、班次偏好都以页面上输入的需求为准
+    var DEFAULT_PEOPLE = [];
+    // 旧版本曾预置过的一句固定需求；老存档里若还是这句原文，加载时清空一次（见 loadPeople）
     var OLD_DEFAULT_NEED = '周四周五白班，其余夜班';
 
     // 硬性要求：每天白班≥minDay、夜班≥minNight、同时上班≤maxStaff、每人出勤 targetDays±1、连班≤maxRun、
@@ -261,7 +254,7 @@ var SCH = (function () {
     // ═══════════ 自定义需求（全局，叠加到现有规则上） ═══════════
     // 一段话，按换行 / 分号 / 句号切成若干条，每条可以是：
     //   ① 对全员生效：      「12月31日不休」「周末白班」「上班20天」
-    //   ② 指定某人：        「吴超：12月1日-2日年假」「石浩东 尽量少上夜班」
+    //   ② 指定某人：        「张三：12月1日-2日年假」「李四 尽量少上夜班」
     //   ③ 每日人数规则：    「每天白班至少3人」「12月31日夜班至少3人」「周末上班最多4人」
     // 返回 { global, byName, dayRules, invalid, notes }
     function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -322,7 +315,7 @@ var SCH = (function () {
         var nameRe = function (n) {
             return new RegExp('^\\s*' + escapeRe(n.cn) + '\\s*[:：,，的]?\\s*|^\\s*' + escapeRe(n.en) + '\\s*[:：,，的]?\\s*', 'i');
         };
-        // 从一段文字开头连续取出人名（支持「吴超和石浩东」「吴超、石浩东」）
+        // 从一段文字开头连续取出人名（支持「张三和李四」「张三、李四」）
         var takeNames = function (s) {
             var got = [], changed = true;
             while (changed) {
@@ -336,8 +329,8 @@ var SCH = (function () {
         };
         // 切分规则：
         //   ① 换行 / 分号 / 句号：无条件切
-        //   ② 逗号：只有后面紧跟「人名 / 全员」才切（否则「吴超：12月1日-2日年假，12月5日白班」会被拆散）
-        //   ③ 和 / 以及 / 还有 / 、/ 跟 / 与：只有后面紧跟人名才切（「林国宇：夜班平均分配和厉津睿多夜班」）
+        //   ② 逗号：只有后面紧跟「人名 / 全员」才切（否则「张三：12月1日-2日年假，12月5日白班」会被拆散）
+        //   ③ 和 / 以及 / 还有 / 、/ 跟 / 与：只有后面紧跟人名才切（「王五：夜班平均分配和赵六多夜班」）
         var nameAlt = names.map(function (n) { return escapeRe(n.cn); })
             .concat(names.map(function (n) { return escapeRe(n.en); })).join('|');
         var startsWithPerson = function (s) {
@@ -367,7 +360,7 @@ var SCH = (function () {
                 ps.forEach(function (x) { x = x.trim(); if (x) pieces.push(x); });
             });
         });
-        // 逐段处理；只有人名没有内容的段，把名字带到下一段（「吴超和石浩东12月1日年假」）
+        // 逐段处理；只有人名没有内容的段，把名字带到下一段（「张三和李四12月1日年假」）
         var pending = [];
         pieces.forEach(function (piece) {
             var t = takeNames(piece);
@@ -393,7 +386,7 @@ var SCH = (function () {
                 out.global = mergeNeed(out.global, n2);
             }
         });
-        // 末尾只剩人名（如「吴超和石浩东」）→ 提示没写需求
+        // 末尾只剩人名（如「张三和李四」）→ 提示没写需求
         if (pending.length) out.invalid.push(pending.join('、') + '（只写了名字，没写需求）');
         out.invalid = dedup(out.invalid);
         if (out.global) (out.global.invalid || []).forEach(function (x) { out.invalid.push('全员：' + x); });
@@ -2532,7 +2525,8 @@ var SCH = (function () {
         if (typeof XLSX === 'undefined') return false;
         var T = input.dates.length, P = input.people.length;
         var aoa = [];
-        var r1 = ['排班原则：最低保障每天白班2人夜班2人', '', ''];
+        var R0 = input.rules || DEFAULT_RULES;
+        var r1 = ['排班原则：最低保障每天白班' + R0.minDay + '人夜班' + R0.minNight + '人', '', ''];
         input.dates.forEach(function (d) { r1.push((d.getMonth() + 1) + '月' + d.getDate() + '日'); });
         aoa.push(r1);
         var r2 = ['企业名', '英文名', '中文名'];
@@ -2648,32 +2642,73 @@ var SCH = (function () {
         return e;
     }
 
+    // 从「数据导入」的班表里提取人员：英文名 / 中文名 / 企业名，nightBias 按历史班表的夜班占比统计
+    function peopleFromImported() {
+        var rows;
+        try { rows = JSON.parse(localStorage.getItem('importedShiftData') || '[]'); } catch (e) { return []; }
+        if (!Array.isArray(rows) || !rows.length) return [];
+        var keys = {};
+        rows.forEach(function (r) { if (r && typeof r === 'object') Object.keys(r).forEach(function (k) { keys[k] = 1; }); });
+        keys = Object.keys(keys);
+        var pick = function (re) { for (var i = 0; i < keys.length; i++) if (re.test(keys[i])) return keys[i]; return null; };
+        var enK = pick(/英文/), cnK = pick(/中文|姓名/), orgK = pick(/企业/);
+        if (!enK && !cnK) return [];
+        var dateKs = keys.filter(function (k) { return /^\d{4}-\d{2}-\d{2}$/.test(k) || /^\d{1,2}月\d{1,2}[日号]$/.test(k); });
+        var out = [], seen = {};
+        rows.forEach(function (r) {
+            if (!r || typeof r !== 'object') return;
+            var en = enK ? String(r[enK] || '').trim() : '', cn = cnK ? String(r[cnK] || '').trim() : '';
+            if (enK && !/^[A-Za-z][A-Za-z0-9._\- ]*$/.test(en)) return;          // 表尾值班 / 说明行没有英文名
+            if (cn && /(班|休|假|值班|备注|合计|出勤)\s*\d*$/.test(cn)) return;
+            var id = (en || cn).toLowerCase();
+            if (!id || seen[id]) return;
+            var work = 0, night = 0;
+            dateKs.forEach(function (k) { var c = shiftCode(r[k]); if (c === DAY || c === NIGHT) { work++; if (c === NIGHT) night++; } });
+            if (!work) return;                                                    // 没有任何班次的行不是人
+            seen[id] = 1;
+            out.push({ en: en || cn, cn: cn || en, org: orgK ? String(r[orgK] || '').trim() || (en || cn) : (en || cn),
+                prefer: '', active: true, nightBias: Math.round(night / work * 100) / 100, need: '' });
+        });
+        return out;
+    }
+    // 把班表里新出现的人加进现有名单（已有的人保留勾选状态和需求文字）；返回新增人数
+    function syncPeopleFromImported(list) {
+        var fresh = peopleFromImported(), added = 0;
+        fresh.forEach(function (f) {
+            var hit = null;
+            for (var i = 0; i < list.length; i++) if (String(list[i].en).toLowerCase() === String(f.en).toLowerCase()) { hit = list[i]; break; }
+            if (hit) {
+                if (!hit.cn) hit.cn = f.cn;
+                if (!hit.org) hit.org = f.org;
+                if (typeof hit.nightBias !== 'number') hit.nightBias = f.nightBias;
+            } else { list.push(f); added++; }
+        });
+        return added;
+    }
     function loadPeople() {
         try {
             var raw = localStorage.getItem('scheduler_people');
             if (raw) {
                 var list = JSON.parse(raw);
-                DEFAULT_PEOPLE.forEach(function (d) {
-                    for (var i = 0; i < list.length; i++) {
-                        if (list[i].en !== d.en) continue;
+                if (Array.isArray(list) && list.length) {
+                    list.forEach(function (p) {
                         // 老存档只有结构化的 weekDay/weekNight，迁移成需求文字
-                        if (list[i].need === undefined) {
-                            var wd = list[i].weekDay || d.weekDay || '';
-                            var wn = list[i].weekNight || d.weekNight || '';
+                        if (p.need === undefined) {
                             var txt = [];
-                            if (wd) txt.push('周' + wd.split(',').map(cnWeek).join('') + '白班');
-                            if (wn) txt.push('周' + wn.split(',').map(cnWeek).join('') + '夜班');
-                            list[i].need = txt.join('，') || (d.need || '');
+                            if (p.weekDay) txt.push('周' + String(p.weekDay).split(',').map(cnWeek).join('') + '白班');
+                            if (p.weekNight) txt.push('周' + String(p.weekNight).split(',').map(cnWeek).join('') + '夜班');
+                            p.need = txt.join('，');
                         }
-                        if (list[i].need === OLD_DEFAULT_NEED) list[i].need = '';   // 旧版预置的固定需求，清空
-                        list[i].prefer = '';                                         // 偏好只来自需求文字，不再保留旧版隐藏偏好
-                        if (typeof list[i].nightBias !== 'number' && typeof d.nightBias === 'number') list[i].nightBias = d.nightBias;
-                    }
-                });
-                return list;
+                        if (p.need === OLD_DEFAULT_NEED) p.need = '';   // 旧版预置的固定需求，清空
+                        p.prefer = '';                                   // 偏好只来自需求文字，不再保留旧版隐藏偏好
+                    });
+                    syncPeopleFromImported(list);   // 补上 nightBias 缺失的人
+                    return list;
+                }
             }
         } catch (e) { }
-        return JSON.parse(JSON.stringify(DEFAULT_PEOPLE));
+        // 没有存档：从已导入的班表提取人员
+        return peopleFromImported();
     }
     function savePeople(list) {
         try { localStorage.setItem('scheduler_people', JSON.stringify(list)); } catch (e) { }
@@ -2718,6 +2753,11 @@ var SCH = (function () {
         });
         thead.appendChild(hr); tbl.appendChild(thead);
         var tbody = el('tbody');
+        if (!UI.people.length) {
+            var etr = el('tr'), etd = el('td', 'sch-need-preview', '还没有人员：请先在「数据导入」导入一份往期班表，人员名单会自动从班表中提取');
+            etd.colSpan = 4; etd.style.textAlign = 'center'; etd.style.maxWidth = 'none'; etd.style.padding = '18px';
+            etr.appendChild(etd); tbody.appendChild(etr);
+        }
         UI.people.forEach(function (p, idx) {
             var tr = el('tr');
             if (!p.active) tr.style.opacity = '.45';
@@ -2751,7 +2791,7 @@ var SCH = (function () {
         var ctd1 = el('td', null, '自定义需求'); ctd1.style.fontWeight = '600'; ctr.appendChild(ctd1);
         var ctd2 = el('td'); var cinp = el('input');
         cinp.type = 'text'; cinp.value = UI.customText || '';
-        cinp.placeholder = '如：12月31日不休；每天白班至少3人；吴超：12月1日-2日年假；周末上班最多4人';
+        cinp.placeholder = '如：12月31日不休；每天白班至少3人；张三：12月1日-2日年假；周末上班最多4人';
         cinp.style.cssText = 'width:100%;min-width:320px';
         var ctd3 = el('td', 'sch-need-preview');
         function refreshCustom() {
@@ -3136,8 +3176,13 @@ var SCH = (function () {
         var input = UI.last.input, result = UI.last.result;
         var name = '排班_' + input.dates[0].getFullYear() + '-' + pad(input.dates[0].getMonth() + 1) + '-' + pad(input.dates[0].getDate()) +
             '_' + pad(input.dates[input.dates.length - 1].getMonth() + 1) + '-' + pad(input.dates[input.dates.length - 1].getDate()) + '.xlsx';
-        var ok = exportXlsx(input, result, name);
-        notify(ok ? '已导出 ' + name : '导出失败：缺少 XLSX 库', ok ? 'success' : 'error');
+        // Excel 库按需加载：未就绪时先加载再导出（原来直接提示「缺少 XLSX 库」）
+        var ready = typeof XLSX !== 'undefined' ? Promise.resolve()
+            : (typeof window !== 'undefined' && window.loadXlsx ? window.loadXlsx() : Promise.reject(new Error('缺少 XLSX 库')));
+        ready.then(function () {
+            var ok = exportXlsx(input, result, name);
+            notify(ok ? '已导出 ' + name : '导出失败：缺少 XLSX 库', ok ? 'success' : 'error');
+        }, function (e) { notify('导出失败：' + ((e && e.message) || 'Excel 库加载失败'), 'error'); });
     }
     function pad(n) { return n < 10 ? '0' + n : String(n); }
 
@@ -3191,8 +3236,10 @@ var SCH = (function () {
             saveRules(UI.rules); renderRules(); notify('规则已恢复默认');
         });
         $('btn-restore').addEventListener('click', function () {
-            UI.people = JSON.parse(JSON.stringify(DEFAULT_PEOPLE));
-            savePeople(UI.people); renderPeopleTable(); notify('人员已恢复默认');
+            // 「恢复默认」= 按已导入的班表重新提取人员（不再使用源码里预置的名单）
+            UI.people = peopleFromImported();
+            savePeople(UI.people); renderPeopleTable();
+            notify(UI.people.length ? '已按导入的班表重新提取 ' + UI.people.length + ' 人' : '还没有导入班表，请先在「数据导入」导入', UI.people.length ? 'success' : 'error');
         });
         $('period-label').textContent = periodLabel(currentPeriod().dates);
     }
