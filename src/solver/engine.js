@@ -25,6 +25,10 @@ var SCH = (function () {
     var FIX_WORK = 7;
 
     var HARD = 1000;
+    // 「多夜班 / 少夜班」把夜班占比在平均值基础上抬高 / 压低多少（0.15 ≈ 21 天出勤里多 / 少 3 个夜班）
+    var PREF_SHIFT = 0.15;
+    // 第 p 人是否参与「夜班均分」：v2.3 起按人（balNight），老输入没有 balNight 时退回 v2.2 的全员口径
+    function balN(inp, p) { return inp.balNight ? !!inp.balNight[p] : (inp.balance || []).indexOf('night') >= 0; }
     // 软目标权重。「孤立单休」不是软目标 —— 休息必须连续两天，已按硬约束处理
     var W = {
         longRest: 12, run6: 15, segLen: 8,
@@ -316,8 +320,14 @@ var SCH = (function () {
         }
         return { rules: [{ kind: kind, op: op, n: n, days: dedup(idxs), scope: scope, labels: dedup(idxs).map(function (i) { return (dates[i].getMonth() + 1) + '/' + dates[i].getDate(); }) }], invalid: ex.invalid };
     }
+    // 「其余人 / 其他人 / 剩下的人 / 其余3人 / 其他几个同事」：自定义需求里没被点名的参与人员
+    var OTHERS_SRC = '(?:其余|其他|其它|剩下|剩余|别的|另外)(?:的)?\\s*(?:[两二三四五六七八九十几]|\\d{1,2})?\\s*(?:个|位|名)?\\s*(?:人员|人|同事|同学|成员|员工|位)';
+    var OTHERS_RE = new RegExp('^\\s*' + OTHERS_SRC + '\\s*(?:都|均|皆)?\\s*[:：,，的]?\\s*');
+    // 人名后面的人数 / 代词：「林国宇王汉明三人多夜班」「张三和李四都多夜班」「他们俩少夜班」
+    var LEAD_RE = /^\s*(?:(?:这|那)?\s*(?:[两二三四五六七八九十几]|\d{1,2})\s*(?:个|位|名)?\s*(?:人|位)|他们俩|她们俩|他们|她们|他俩|她俩|俩人|两人)?\s*(?:都|均|皆)?\s*[:：,，]?\s*/;
+    var CN_NUM = { '两': 2, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
     function parseCustomNeed(text, dates, people) {
-        var out = { global: null, byName: {}, dayRules: [], invalid: [], notes: [] };
+        var out = { global: null, byName: {}, others: null, dayRules: [], invalid: [], notes: [] };
         if (!text || !String(text).trim()) return out;
         var names = (people || []).map(function (p) { return { cn: p.cn, en: p.en }; });
         var ALL_RE = /^\s*(全员|所有人|全体|大家|每个人|每人)\s*[:：,，]?\s*/;
@@ -344,11 +354,12 @@ var SCH = (function () {
         var nameAlt = names.map(function (n) { return escapeRe(n.cn); })
             .concat(names.map(function (n) { return escapeRe(n.en); })).join('|');
         var startsWithPerson = function (s) {
-            if (ALL_RE.test(s)) return true;
+            if (ALL_RE.test(s) || OTHERS_RE.test(s)) return true;
             if (!nameAlt) return false;
             return new RegExp('^\\s*(?:' + nameAlt + ')', 'i').test(s);
         };
-        var conjRe = nameAlt ? new RegExp('(?:和|以及|还有|、|跟|与)\\s*(?=(?:' + nameAlt + '))', 'g') : null;
+        // 「和 / 、」后面跟人名或「其余人」才切；「其余人」前面即使没有标点也切开（「林国宇多夜班其余人均分」）
+        var conjRe = new RegExp('(?:和|以及|还有|、|跟|与)\\s*(?=(?:' + (nameAlt ? nameAlt + '|' : '') + OTHERS_SRC + '))|(?=' + OTHERS_SRC + ')', 'gi');
         var pieces = [];
         String(text).split(/[\n\r；;。]+/).forEach(function (seg) {
             seg = seg.trim();
@@ -371,13 +382,26 @@ var SCH = (function () {
             });
         });
         // 逐段处理；只有人名没有内容的段，把名字带到下一段（「张三和李四12月1日年假」）
-        var pending = [];
+        var pending = [], mentioned = [], othersNeed = null, othersHit = false, othersCnt = 0;
         pieces.forEach(function (piece) {
             var t = takeNames(piece);
             var who = pending.concat(t.names);
             pending = [];
+            mentioned = mentioned.concat(t.names);
             var body = t.body;
-            if (!body.trim()) { pending = who; return; }   // 只有名字，等下一段
+            // 「其余人 / 其他人 / 剩下的人」：没被点名的人，等全部读完再确定是谁
+            var isOthers = !who.length && OTHERS_RE.test(body);
+            if (isOthers) {
+                var cm = body.match(OTHERS_RE)[0].match(/(\d{1,2}|[两二三四五六七八九十])\s*(?:个|位|名)?\s*(?:人员|人|同事|同学|成员|员工|位)/);
+                if (cm) othersCnt = /\d/.test(cm[1]) ? +cm[1] : CN_NUM[cm[1]];
+                body = body.replace(OTHERS_RE, ''); othersHit = true;
+            }
+            if (who.length) body = body.replace(LEAD_RE, '');
+            if (!body.trim()) {
+                if (isOthers) out.invalid.push('其余人（只写了范围，没写需求）');
+                else pending = who;                      // 只有名字，等下一段
+                return;
+            }
             // ① 每日人数规则（对全员生效，不区分人）
             var dr = parseDayRule(body, dates);
             if (dr) {
@@ -386,11 +410,11 @@ var SCH = (function () {
                 return;
             }
             // ② 去掉「全员 / 所有人 / 大家」前缀
-            var isAll = ALL_RE.test(body);
             body = body.replace(ALL_RE, '');
             if (!body) return;
             var n2 = parseNeedText(body, dates);
-            if (who.length) {
+            if (isOthers) othersNeed = mergeNeed(othersNeed, n2);
+            else if (who.length) {
                 who.forEach(function (cn) { out.byName[cn] = mergeNeed(out.byName[cn], n2); });
             } else {
                 out.global = mergeNeed(out.global, n2);
@@ -398,27 +422,58 @@ var SCH = (function () {
         });
         // 末尾只剩人名（如「张三和李四」）→ 提示没写需求
         if (pending.length) out.invalid.push(pending.join('、') + '（只写了名字，没写需求）');
+        // 「其余人」= 参与排班、且在自定义需求里没被点名的人（与书写顺序无关）
+        if (othersNeed) {
+            var rest = (people || []).filter(function (p) { return p.active !== false && mentioned.indexOf(p.cn) < 0; })
+                .map(function (p) { return p.cn; });
+            out.others = { names: rest, need: othersNeed };
+            if (!rest.length && names.length) out.invalid.push('其余人（点名之外已没有其他参与排班的人）');
+            else if (othersCnt && othersCnt !== rest.length) out.notes.push('写的是其余 ' + othersCnt + ' 人，按名单实际是 ' + rest.length + ' 人（' + rest.join('、') + '），请核对');
+            rest.forEach(function (cn) { out.byName[cn] = mergeNeed(out.byName[cn], othersNeed); });
+        } else if (othersHit && !names.length) out.invalid.push('其余人（还没有人员名单）');
         out.invalid = dedup(out.invalid);
         if (out.global) (out.global.invalid || []).forEach(function (x) { out.invalid.push('全员：' + x); });
+        if (out.others) (out.others.need.invalid || []).forEach(function (x) { out.invalid.push('其余人：' + x); });
         Object.keys(out.byName).forEach(function (k) {
+            if (out.others && out.others.names.indexOf(k) >= 0) return;
             (out.byName[k].invalid || []).forEach(function (x) { out.invalid.push(k + '：' + x); });
         });
         out.invalid = dedup(out.invalid);
         return out;
     }
-    // 把自定义需求翻译成人话，给页面即时核对
+    // 把自定义需求翻译成人话，给页面即时核对：需求相同的人合成一组，组与组之间用「；」隔开，
+    // 「其余人」展开成具体名单（「其余人（吴超、石浩东）：夜班平均分配」）
     function describeCustom(c) {
         if (!c) return '';
         var parts = [];
-        if (c.global) parts.push('全员：' + describeNeed(c.global));
-        Object.keys(c.byName || {}).forEach(function (k) { parts.push(k + '：' + describeNeed(c.byName[k])); });
+        // 各组只写识别出的内容，未识别项统一放到末尾（原来同一条会出现两次）
+        var dn = function (n) {
+            var cp = {}; for (var k in n) cp[k] = n[k];
+            cp.invalid = []; cp.notes = [];
+            return describeNeed(cp);
+        };
+        if (c.global) parts.push('全员：' + dn(c.global));
+        var oth = (c.others && c.others.names) || [];
+        var groups = [], gi = {};
+        Object.keys(c.byName || {}).forEach(function (k) {
+            if (oth.indexOf(k) >= 0) return;
+            var d = dn(c.byName[k]) || '（无可识别需求）';
+            if (gi[d] == null) { gi[d] = groups.length; groups.push({ names: [], d: d }); }
+            groups[gi[d]].names.push(k);
+        });
+        groups.forEach(function (g) { parts.push(g.names.join('、') + '：' + g.d); });
+        if (c.others) parts.push('其余人（' + (oth.length ? oth.join('、') : '无') + '）：' + (dn(c.others.need) || '（无可识别需求）'));
         (c.dayRules || []).forEach(function (r) {
             var scope = r.scope === 'weekend' ? '周末' : r.scope === 'workday' ? '工作日' : r.scope === 'all' ? '每天'
                 : (r.days.length > 6 ? '共 ' + r.days.length + ' 天' : (r.labels || []).join('、'));
             parts.push(scope + ' ' + KIND_CN[r.kind] + OP_CN[r.op] + r.n + '人');
         });
+        var notes = (c.notes || []).slice();
+        if (c.global) notes = notes.concat(c.global.notes || []);
+        Object.keys(c.byName || {}).forEach(function (k) { notes = notes.concat(c.byName[k].notes || []); });
         if (c.invalid && c.invalid.length) parts.push('⚠ 未识别：' + c.invalid.join('；'));
-        return parts.join(' · ');
+        if (notes.length) parts.push('ℹ ' + dedup(notes).join('；'));
+        return parts.join('；');
     }
 
     // dates（可选）= 本期日期数组；传入后日期会落到本期具体某天，识别不了 / 不在本期的写进 invalid 提示用户
@@ -455,7 +510,11 @@ var SCH = (function () {
                 });
                 continue;
             }
-            // ② 「其余夜班 / 其余白班」
+            // ② 「其余夜班 / 其余白班」（「其余人 / 其他3人」是人员范围，只能写在自定义需求里，别当成「其余星期」）
+            if (new RegExp(OTHERS_SRC).test(segN)) {
+                r.invalid.push(seg + '（「其余人」只能写在自定义需求里）');
+                continue;
+            }
             if (/(其余|其他|其它|剩下|剩余|别的)/.test(segN) && /(白|夜|早|正常)/.test(segN)) {
                 if (/夜/.test(segN)) r.nightAll = true; else r.dayAll = true;
                 continue;
@@ -467,15 +526,17 @@ var SCH = (function () {
                 else r.counts.push(cntN);
                 continue;
             }
-            // ③' 简写偏好：「多夜班」「少夜班」「多白班」「少白班」「夜班多一点」「白班少一点」
-            var mShort = segN.match(/^(多|少|多上|少上|多排|少排)\s*(夜|白)班/) ||
-                segN.match(/(夜|白)班\s*(多|少)(一点|一些|点|些)?/);
+            // ③' 简写偏好：「多夜班」「少夜班」「多上点夜班」「多排夜班」「夜班多一点」「偏夜班」「夜班为主」「主上白班」
+            var mShort = segN.match(/^(多|少)\s*(?:上|排|安排|值|分|分配|给)?\s*(?:点|一点|一些|些)?\s*(夜|白|早)班?/) ||
+                segN.match(/(夜|白|早)班\s*(多|少)\s*(一点|一些|点|些)?/);
             if (mShort) {
-                var more = /^(多|多上|多排)/.test(mShort[1]) || mShort[2] === '多';
+                var more = mShort[1] === '多' || mShort[2] === '多';
                 var isNight = (mShort[2] === '夜' || mShort[1] === '夜');
                 r.prefer = (more === isNight) ? 'night' : 'day';
                 continue;
             }
+            var mLean = segN.match(/^(?:偏|偏向|偏重|主上|主要上|以)\s*(夜|白|早)班?/) || segN.match(/(夜|白|早)班\s*为主/);
+            if (mLean) { r.prefer = mLean[1] === '夜' ? 'night' : 'day'; continue; }
             // ③ 偏好：「尽量少上夜班」「想上白班」
             if (/(想|希望|尽量|倾向|偏好|最好|优先|少上|多上|不想|避免)/.test(segN) && /(白|夜)/.test(segN)) {
                 var neg = /少上|不想|避免|尽量不/.test(segN);
@@ -600,7 +661,7 @@ var SCH = (function () {
     function buildInput(dates, people, rules, carry, opts) {
         opts = opts || {};
         var P = people.length, T = dates.length;
-        var fixed = [], leaveName = [], targets = [], prefers = [], nightBias = [], conflicts = [], countReqs = [], balSet = [];
+        var fixed = [], leaveName = [], targets = [], prefers = [], nightBias = [], conflicts = [], countReqs = [], balSet = [], balList = [];
         var dn = function (i) { return (dates[i].getMonth() + 1) + '/' + dates[i].getDate(); };
         // 自定义需求（全局）：先解析，再按人合并到各自需求上
         var custom = opts.custom || null;
@@ -676,6 +737,7 @@ var SCH = (function () {
             targets.push(peEff.target || rules.targetDays);
             nightBias.push(typeof pe.nightBias === 'number' ? pe.nightBias : 0.5);
             prefers.push(peEff.prefer || '');
+            balList.push(peEff.balance || []);
             (peEff.balance || []).forEach(function (b) { if (balSet.indexOf(b) < 0) balSet.push(b); });
             // 天数类要求（白班/夜班/上班 至少/最多 N 天）
             (peEff.counts || []).forEach(function (c) {
@@ -701,10 +763,66 @@ var SCH = (function () {
         var scale = biasSum > 0 ? totalNight / biasSum : 0;
         var nightTarget = [];
         for (var tn = 0; tn < P; tn++) nightTarget.push(targets[tn] * nightBias[tn] * scale);
-        // 自定义需求「夜班平均一下」：不再按往期习惯加权，改成每人等额分摊夜班总量
-        if (balSet.indexOf('night') >= 0) {
-            var perNight = totalNight / P;
-            for (var bn = 0; bn < P; bn++) nightTarget[bn] = perNight;
+        // v2.3「多夜班 / 少夜班」：直接抬高 / 压低本人的夜班目标（原来只是每天 3 分的弱偏好，被「贴近往期 ±2 天」压住，基本不生效）
+        //   多夜班：夜班占比取 max(往期, 平均 + PREF_SHIFT)；少夜班：取 min(往期, 平均 − PREF_SHIFT)；往期已经够偏的就沿用往期
+        //   其余人分剩下的夜班（按往期比例；有「均分」的再在组内拉平）
+        var avgShare = totalWork > 0 ? totalNight / totalWork : 0.5;
+        var clampS = function (x) { return Math.max(0.05, Math.min(0.95, x)); };
+        var fixSum = 0, freeW = 0, nFree = 0, nPref = 0;
+        for (var pf = 0; pf < P; pf++) {
+            if (prefers[pf] === 'night') { nightTarget[pf] = targets[pf] * clampS(Math.max(nightBias[pf], avgShare + PREF_SHIFT)); fixSum += nightTarget[pf]; nPref++; }
+            else if (prefers[pf] === 'day') { nightTarget[pf] = targets[pf] * clampS(Math.min(nightBias[pf], avgShare - PREF_SHIFT)); fixSum += nightTarget[pf]; nPref++; }
+            else { freeW += targets[pf] * nightBias[pf]; nFree++; }
+        }
+        if (nPref) {
+            var remain = totalNight - fixSum;
+            if (nFree && remain > 0) {
+                for (pf = 0; pf < P; pf++) {
+                    if (prefers[pf] === 'night' || prefers[pf] === 'day') continue;
+                    var wf = freeW > 0 ? targets[pf] * nightBias[pf] / freeW : 1 / nFree;
+                    nightTarget[pf] = Math.min(targets[pf] * 0.95, remain * wf);
+                }
+            } else {
+                // 全员都写了偏好，或偏好要的夜班超过总量：按比例整体缩放回总量（相对多少不变）
+                var sAll = 0; for (pf = 0; pf < P; pf++) sAll += nightTarget[pf];
+                if (sAll > 0) for (pf = 0; pf < P; pf++) nightTarget[pf] *= totalNight / sAll;
+            }
+        }
+        // 自定义需求「夜班平均一下」：只在写了均分的人之间拉平（组内等额分摊这组人的夜班总量），其他人不受影响。
+        // 全员都写了（「夜班平均一下」）时，与 v2.2 一致：每人 = 夜班总量 / 人数
+        var balNight = [], balIdx = [];
+        for (var bn = 0; bn < P; bn++) {
+            var isB = balList[bn].indexOf('night') >= 0;
+            balNight.push(isB);
+            if (isB) balIdx.push(bn);
+        }
+        if (balIdx.length) {
+            var bSum = 0;
+            balIdx.forEach(function (q) { bSum += nightTarget[q]; });
+            var perNight = balIdx.length === P ? totalNight / P : bSum / balIdx.length;
+            balIdx.forEach(function (q) { nightTarget[q] = perNight; });
+        }
+        // 写进校验报告，方便核对「多夜班 / 均分」到底排成了多少
+        var nightPlan = '';
+        if (nPref || balIdx.length) {
+            var seg = [], used = {};
+            var nm = function (q) { return people[q].cn; };
+            var grp = function (label, ids) {
+                if (!ids.length) return;
+                ids.forEach(function (q) { used[q] = 1; });
+                seg.push(label + ' ' + ids.map(function (q) { return nm(q) + '≈' + Math.round(nightTarget[q]); }).join('、'));
+            };
+            var ix = function (f) { var o = []; for (var q = 0; q < P; q++) if (f(q)) o.push(q); return o; };
+            grp('多夜班', ix(function (q) { return prefers[q] === 'night' && !balNight[q]; }));
+            grp('少夜班', ix(function (q) { return prefers[q] === 'day' && !balNight[q]; }));
+            if (balIdx.length) {
+                var avgB = nightTarget[balIdx[0]];
+                seg.push('夜班均分 ' + balIdx.map(nm).join('、') + ' 各≈' + (Math.round(avgB * 10) / 10) +
+                    '（允许 ' + Math.max(0, Math.floor(avgB) - 1) + '~' + (Math.ceil(avgB) + 1) + ' 天）');
+                balIdx.forEach(function (q) { used[q] = 1; });
+            }
+            grp('按往期习惯', ix(function (q) { return !used[q]; }));
+            nightPlan = '夜班目标（全期共约 ' + totalNight + ' 个夜班）：' + seg.join('；');
         }
 
         // 固定轮休的往期先验：往期休息日落在「每周相邻两天」k、k+1（k：0=周日 … 6=周六，k=6 即周六日）上的比例越高，
@@ -736,6 +854,8 @@ var SCH = (function () {
             conflicts: conflicts,
             countReqs: countReqs,
             balance: balSet,
+            balNight: balNight,
+            nightPlan: nightPlan,
             dayRules: (custom && custom.dayRules) ? custom.dayRules : [],
             customNotes: customNotes,
             needNotes: opts.needNotes || []
@@ -1019,7 +1139,7 @@ var SCH = (function () {
                 else row(terms.concat([term(-1, sl('cqL_' + ci, wgt, info)), term(1, sl('cqH_' + ci, wgt, info))]), '=', cr.n);
             });
             // 自定义需求「夜班平均一下」：每人夜班数限制在均值 ±1 天内（排不开时进校验报告）
-            if ((input.balance || []).indexOf('night') >= 0) {
+            if (balN(input, p)) {
                 var NB = []; for (t = 0; t < T; t++) NB.push(term(1, nv(p, t)));
                 var avgN = input.nightTarget[p] || 0;
                 var loN = Math.max(0, Math.floor(avgN) - 1), hiN = Math.ceil(avgN) + 1;
@@ -1043,7 +1163,7 @@ var SCH = (function () {
                 }
             }
             // 夜班数偏离往期习惯超过 2 天的部分重罚（同样第一阶段就带上，避免退回时出现全白 / 全夜的人）
-            if (input.nightTarget && input.nightTarget[p] && (input.balance || []).indexOf('night') < 0) {
+            if (input.nightTarget && input.nightTarget[p] && !balN(input, p)) {
                 var NB2 = []; for (t = 0; t < T; t++) NB2.push(term(1, nv(p, t)));
                 row(NB2.concat([term(-1, sl('nP2_' + p, W.nightBand))]), '<=', (input.nightTarget[p] + 2).toFixed(3));
                 row(NB2.concat([term(1, sl('nM2_' + p, W.nightBand))]), '>=', Math.max(0, input.nightTarget[p] - 2).toFixed(3));
@@ -1265,7 +1385,7 @@ var SCH = (function () {
             if (t > 0 ? a[t - 1] === OFF : (cy.length > 0 && cy[cy.length - 1] === OFF)) soft += W.isoWork;
         }
         var nt = inp.nightTarget ? inp.nightTarget[p] : 0;
-        if (nt && (inp.balance || []).indexOf('night') < 0) {
+        if (nt && !balN(inp, p)) {
             var nn = 0; for (t = 0; t < T; t++) if (a[t] === NIGHT) nn++;
             soft += Math.max(0, Math.abs(nn - nt) - 2) * W.nightBand;
         }
@@ -1364,7 +1484,7 @@ var SCH = (function () {
         else if (pref === 'night') soft += (work - night) * W.prefer;
         var nt = this.in.nightTarget ? this.in.nightTarget[p] : 0;
         if (nt) {
-            if ((this.in.balance || []).indexOf('night') >= 0) {
+            if (balN(this.in, p)) {
                 var loB = Math.max(0, Math.floor(nt) - 1), hiB = Math.ceil(nt) + 1;
                 if (night < loB) hard += (loB - night) * HARD;
                 if (night > hiB) hard += (night - hiB) * HARD;
@@ -1474,7 +1594,7 @@ var SCH = (function () {
             if (pref === 'day') soft += night * W.prefer; else if (pref === 'night') soft += (work - night) * W.prefer;
             var nt = this.in.nightTarget ? this.in.nightTarget[p] : 0;
             if (nt) {
-                if ((this.in.balance || []).indexOf('night') >= 0) {
+                if (balN(this.in, p)) {
                     var loB2 = Math.max(0, Math.floor(nt) - 1), hiB2 = Math.ceil(nt) + 1;
                     if (night < loB2) hard += (loB2 - night) * HARD;
                     if (night > hiB2) hard += (night - hiB2) * HARD;
@@ -2680,6 +2800,11 @@ var SCH = (function () {
         var v = [], notes = [], solo = [];
         var rules = input.rules;
         var dlabel = function (i) { return (input.dates[i].getMonth() + 1) + '/' + input.dates[i].getDate(); };
+        // 「多夜班 / 夜班均分」：报告里给出目标与实际，方便核对自定义需求有没有生效
+        if (input.nightPlan) {
+            notes.push(input.nightPlan);
+            notes.push('实际夜班：' + result.personStats.map(function (s) { return s.cn + ' ' + s.night; }).join('、'));
+        }
         for (var p = 0; p < P; p++) {
             var st = result.personStats[p];
             if (Math.abs(st.work - input.targets[p]) > 1) v.push(st.cn + ' 实际出勤 ' + st.work + ' 天，目标 ' + input.targets[p] + ' 天（超出允许浮动）');
@@ -2716,7 +2841,7 @@ var SCH = (function () {
                 if (bad) v.push(st.cn + ' 自定义要求' + KIND_CN[cr.kind] + OP_CN[cr.op] + cr.n + '天，实际 ' + act + ' 天');
             });
             // 夜班平均（自定义需求）：允许均值 ±1 天
-            if ((input.balance || []).indexOf('night') >= 0) {
+            if (balN(input, p)) {
                 var avgN2 = input.nightTarget[p] || 0;
                 var lo2 = Math.max(0, Math.floor(avgN2) - 1), hi2 = Math.ceil(avgN2) + 1;
                 if (st.night < lo2 || st.night > hi2) v.push(st.cn + ' 夜班 ' + st.night + ' 天，未平均（要求 ' + lo2 + '~' + hi2 + ' 天）');

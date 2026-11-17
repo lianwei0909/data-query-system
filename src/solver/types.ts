@@ -66,6 +66,8 @@ export interface DayRule { kind: CountKind; op: CountOp; n: number; days: number
 export interface CustomNeed {
   global: NeedParse | null
   byName: Record<string, NeedParse>
+  /** 「其余人 / 其他人 / 剩下的人」：names = 参与排班且没被点名的人（其需求也已并入 byName） */
+  others?: { names: string[]; need: NeedParse } | null
   dayRules: DayRule[]
   invalid: string[]
   notes: string[]
@@ -91,6 +93,10 @@ export interface SchedulerInput {
   conflicts: string[]
   countReqs: (CountReq & { p: number; soft: boolean })[]
   balance: BalanceKind[]
+  /** 每人是否参与「夜班均分」（v2.3 起按人；缺省时按 balance 全员口径） */
+  balNight?: boolean[]
+  /** 夜班目标说明（有「多夜班 / 少夜班 / 均分」时才有），写进校验报告 */
+  nightPlan?: string
   dayRules: DayRule[]
   customNotes: string[]
   needNotes: string[]

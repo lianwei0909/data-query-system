@@ -16,7 +16,8 @@ declare const SCH: {
   keyOf(d: Date): string
   parseNeedText(text: string, dates?: Date[] | null): NeedParse
   describeNeed(n: NeedParse): string
-  parseCustomNeed(text: string, dates: Date[] | null, people: Pick<Person, 'cn' | 'en'>[]): CustomNeed
+  /** people 里 active === false 的人不计入「其余人」 */
+  parseCustomNeed(text: string, dates: Date[] | null, people: (Pick<Person, 'cn' | 'en'> & { active?: boolean })[]): CustomNeed
   describeCustom(c: CustomNeed | null): string
   buildInput(dates: Date[], people: Person[], rules: Rules, carry: ShiftCode[][] | null, opts?: BuildOpts): SchedulerInput
   precheck(input: SchedulerInput): { ok: boolean; reason?: string }
