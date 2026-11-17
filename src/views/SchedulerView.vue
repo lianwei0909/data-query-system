@@ -56,7 +56,7 @@ function setRule(key: RuleNumKey, v: number) {
 function setN2D(v: boolean) {
   rules.value.nightToDayHard = v
   S.saveRules(rules.value, ls)
-  toast(v ? '已把小夜约束设为硬约束（可能击穿白班下限）' : '已把小夜约束设为软约束（优先保证人数与双休）')
+  toast(v ? '已把夜班约束设为硬约束（可能击穿白班下限）' : '已把夜班约束设为软约束（优先保证人数与双休）')
 }
 function setFixedRest(v: boolean) {
   rules.value.fixedRest = v

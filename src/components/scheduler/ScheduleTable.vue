@@ -5,12 +5,12 @@ import SCH from '../../solver/engine.js'
 import type { DayStat, ScheduleResult, SchedulerInput } from '../../solver/types'
 
 const props = defineProps<{ input: SchedulerInput; result: ScheduleResult }>()
-const SUM_HEADS = ['出勤', '休', '白班', '小夜', '最长连班']
-// 白班名称按人沿用往期写法（早班2 / 正常班 / 白班），格子里显示首字
+const SUM_HEADS = ['出勤', '休', '白班', '夜班', '最长连班']
+// 界面统一称呼：白班类显示「白」，夜班显示「夜」；底层班次名（往期写法）保持不变
 const dayNames = computed(() => [...new Set(props.input.dayLabel?.length ? props.input.dayLabel : ['白班'])])
-const LEGEND = computed<[string, string][]>(() => [...dayNames.value.map(n => [n, 'day1'] as [string, string]), ['小夜班3', 'night'], ['休', 'rest'], ['假', 'leave']])
+const LEGEND: [string, string][] = [['白', 'day1'], ['夜', 'night'], ['休', 'rest'], ['假', 'leave']]
 const cellCls = (v: string) => v === '小夜班3' ? 'night' : v === '休' ? 'rest' : dayNames.value.includes(v) ? 'day1' : 'leave'
-const shortName = (v: string) => v === '小夜班3' ? '小夜' : dayNames.value.includes(v) ? v.charAt(0) : v
+const shortName = (v: string) => v === '小夜班3' ? '夜' : dayNames.value.includes(v) ? '白' : v
 const STAT_ROWS: { label: string; get: (s: DayStat) => number; bad: (v: number) => boolean }[] = [
   { label: '白班', get: s => s.day, bad: v => v < props.input.rules.minDay },
   { label: '夜班', get: s => s.night, bad: v => v < props.input.rules.minNight },
@@ -31,7 +31,7 @@ const STAT_ROWS: { label: string; get: (s: DayStat) => number; bad: (v: number) 
       <tbody>
         <tr v-for="(row, p) in result.grid" :key="p">
           <td class="sch-name-col">{{ input.people[p].cn }}</td>
-          <td v-for="(v, d) in row" :key="d" :class="'sch-cell ' + cellCls(v)" :title="SCH.keyOf(input.dates[d]) + ' ' + v">{{ shortName(v) }}</td>
+          <td v-for="(v, d) in row" :key="d" :class="'sch-cell ' + cellCls(v)" :title="SCH.keyOf(input.dates[d]) + ' ' + shortName(v)">{{ shortName(v) }}</td>
           <td class="sch-sum-col">{{ result.personStats[p].work }}</td>
           <td class="sch-sum-col">{{ result.personStats[p].rest }}</td>
           <td class="sch-sum-col">{{ result.personStats[p].day }}</td>

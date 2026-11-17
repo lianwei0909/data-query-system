@@ -1141,8 +1141,8 @@ var SCH = (function () {
                 case 'workHigh': hard.push(nm(m.p) + ' 出勤比目标多 ' + amt + ' 天以上（目标 ' + input.targets[m.p] + '±1）'); break;
                 case 'maxRun': hard.push(nm(m.p) + ' ' + dn(m.t) + ' 起连班超过 ' + R.maxRun + ' 天'); break;
                 case 'maxRunCarry': hard.push(nm(m.p) + ' 上期末已连上 ' + m.run + ' 天，接到本期后连班超过 ' + R.maxRun + ' 天'); break;
-                case 'n2d': if (m.hard) hard.push(nm(m.p) + ' ' + dn(m.t) + ' 小夜 → 次日白班'); break;
-                case 'n2dCarry': if (m.hard) hard.push(nm(m.p) + ' 上期末小夜 → ' + dn(0) + ' 白班'); break;
+                case 'n2d': if (m.hard) hard.push(nm(m.p) + ' ' + dn(m.t) + ' 夜 → 次日白班'); break;
+                case 'n2dCarry': if (m.hard) hard.push(nm(m.p) + ' 上期末夜 → ' + dn(0) + ' 白班'); break;
                 case 'fix': hard.push(nm(m.p) + ' ' + dn(m.t) + ' 未能按要求上' + m.v); break;
                 case 'mustWork': hard.push(nm(m.p) + ' ' + dn(m.t) + ' 要求上班，但被排成休息'); break;
                 case 'dayRule': hard.push(dn(m.t) + ' 自定义要求' + KIND_CN[m.kind] + OP_CN[m.op] + m.n + '人，实际差 ' + amt + ' 人'); break;
@@ -2687,7 +2687,7 @@ var SCH = (function () {
             if (st.maxRun > rules.maxRun) v.push(st.cn + ' 最长连班 ' + st.maxRun + ' 天，超过上限 ' + rules.maxRun);
             for (var d = 0; d < T - 1; d++) {
                 if (result.raw[p][d] === NIGHT && result.raw[p][d + 1] === DAY) {
-                    v.push(st.cn + ' ' + input.dates[d].getDate() + '号小夜 → ' + input.dates[d + 1].getDate() + '号白班');
+                    v.push(st.cn + ' ' + input.dates[d].getDate() + '号夜 → ' + input.dates[d + 1].getDate() + '号白班');
                 }
             }
             // 双休（尽量满足）：单休不算违规，单独列出；含上期衔接的边界
@@ -2698,7 +2698,7 @@ var SCH = (function () {
                 if (!lOff && result.raw[p][dr + 1] !== OFF) solo.push(st.cn + ' ' + dlabel(dr));
             }
             if (cr.length >= 2 && cr[cr.length - 1] === OFF && cr[cr.length - 2] !== OFF && result.raw[p][0] !== OFF) solo.push(st.cn + ' 上期最后一天单休（本期首日在班）');
-            if (rules.nightToDayHard && cr.length && cr[cr.length - 1] === NIGHT && result.raw[p][0] === DAY) v.push(st.cn + ' 上期末小夜 → ' + dlabel(0) + ' 白班');
+            if (rules.nightToDayHard && cr.length && cr[cr.length - 1] === NIGHT && result.raw[p][0] === DAY) v.push(st.cn + ' 上期末夜 → ' + dlabel(0) + ' 白班');
             for (var d2 = 0; d2 < T; d2++) {
                 var f = input.fixed[p][d2];
                 if ((f === FIX_REST || f === FIX_LEAVE) && result.raw[p][d2] !== OFF) v.push(st.cn + ' ' + input.dates[d2].getDate() + '号应休息但被排班');

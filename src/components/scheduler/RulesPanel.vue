@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 排班周期 + 规则（最低白/夜班、人数上限、连班上限、目标天数、小夜约束）
+// 排班周期 + 规则（最低白/夜班、人数上限、连班上限、目标天数、夜班约束）
 import { computed } from 'vue'
 import type { RuleNumKey, Rules } from '../../solver/types'
 
@@ -43,7 +43,7 @@ const onRule = (key: RuleNumKey, e: Event) => emit('rule', key, parseInt((e.targ
       </span>
       <label class="sch-field" style="cursor:pointer">
         <input type="checkbox" id="rule-n2dh" style="width:auto" :checked="rules.nightToDayHard" @change="emit('n2d', ($event.target as HTMLInputElement).checked)" />
-        小夜后次日不上白班（硬约束）
+        夜班后次日不上白班（硬约束）
       </label>
       <label class="sch-field" style="cursor:pointer" title="每人每周固定休息相邻两天（如周六日），优先沿用往期班表里各自的休息日；同时尽量让每周节奏一致、不排只上一天的孤立班">
         <input type="checkbox" id="rule-fixedrest" style="width:auto" :checked="rules.fixedRest !== false" @change="emit('fixedRest', ($event.target as HTMLInputElement).checked)" />
@@ -51,6 +51,6 @@ const onRule = (key: RuleNumKey, e: Event) => emit('rule', key, parseInt((e.targ
       </label>
       <button type="button" class="board-eraser" id="btn-reset" @click="emit('reset')">恢复默认规则</button>
     </div>
-    <div class="hint-text" style="margin-top:10px">周期：上月 21 日 ~ 本月 20 日　·　小夜后次日不上白班　·　休息尽量连休两天　·　固定轮休时每人每周休同样的两天</div>
+    <div class="hint-text" style="margin-top:10px">周期：上月 21 日 ~ 本月 20 日　·　夜班后次日不上白班　·　休息尽量连休两天　·　固定轮休时每人每周休同样的两天</div>
   </div>
 </template>
