@@ -419,7 +419,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .legend-dot.blue{background:var(--accent)}.legend-dot.orange{background:var(--orange)}.legend-dot.red{background:var(--red)}.legend-dot.purple{background:var(--purple)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-template-rows:auto;grid-auto-rows:minmax(68px,1fr);gap:6px;flex:1;min-height:0}
 .cal-head{display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:var(--text-secondary);padding:9px 0 5px;margin-top:2px}
-.cal-head.weekend{color:rgba(247,95,95,.7)}
+.cal-head.weekend{color:var(--red-text)}
 .cal-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;cursor:default;padding:7px 4px;transition:background .12s;position:relative;gap:5px;min-height:68px}
 .cal-cell.clickable{cursor:pointer}
 .cal-cell:hover:not(.empty):not(.other-month){background:var(--hover)}
@@ -436,7 +436,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .cal-shift.s-night{background:var(--night-bg);color:var(--night-text)}
 .cal-shift.s-rest{background:var(--rest-bg);color:var(--rest-text)}
 .cal-shift.s-leave{background:var(--leave-bg);color:var(--leave-text)}
-.cal-shift.s-none{background:transparent;color:var(--text-muted);font-weight:500;font-size:14px;padding:5px 6px}
+.cal-shift.s-none{background:transparent;color:var(--text-secondary);font-weight:500;font-size:14px;padding:5px 6px}
 /* 月份标题旁的引导：本月后面几天还没排班 / 没导入班表 */
 .cal-hint{font-size:13px;color:var(--gold-text);background:var(--gold-bg);border:1px solid rgba(247,200,79,.25);border-radius:999px;padding:3px 10px;cursor:pointer;white-space:nowrap;font-weight:500}
 .cal-hint:hover{border-color:rgba(247,200,79,.6)}
