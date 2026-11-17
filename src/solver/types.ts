@@ -15,6 +15,9 @@ export interface Person {
   prefer: string
   /** 往期夜班占出勤比例，仅作软目标 */
   nightBias?: number
+  /** 往期习惯（从导入班表重算）：最近 6 周「休」落在周日~周六的次数；最常用的白班写法（早班2 / 正常班 / 白班） */
+  restHist?: number[]
+  dayLabel?: string
   target?: number
   /** v1 老存档的结构化字段，加载时迁移成 need */
   weekDay?: string
@@ -28,6 +31,8 @@ export interface Rules {
   maxRun: number
   targetDays: number
   nightToDayHard: boolean
+  /** 每人每周固定休息相邻两天（参考往期），默认开 */
+  fixedRest?: boolean
   v: number
 }
 export type RuleNumKey = 'minDay' | 'minNight' | 'maxStaff' | 'maxRun' | 'targetDays'
@@ -70,6 +75,12 @@ export interface SchedulerInput {
   dates: Date[]
   people: Person[]
   rules: Rules
+  /** 每天是星期几（0=周日） */
+  dow: number[]
+  /** 固定轮休的往期先验：7 种「相邻两天」组合各自的罚分；无往期为 null */
+  restPrior: (number[] | null)[]
+  /** 每人的白班名称 */
+  dayLabel: string[]
   nightTarget: number[]
   fixed: FixCode[][]
   leaveName: string[][]

@@ -35,6 +35,22 @@ export function dateKeyMatch(key: string, d: Date): boolean {
 }
 
 // ── 人员 ──
+/** 往期习惯：最近 6 周里「休」落在星期几（周日=0）的次数，和最常用的白班写法（早班2 / 正常班 / 白班）。只看带年份的日期列 */
+export function habitsOf(r: Row, dateKs: string[]): { restHist: number[]; dayLabel: string } {
+  const restHist = [0, 0, 0, 0, 0, 0, 0], labels: Record<string, number> = {}
+  const iso = dateKs.filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && String(r[k] ?? '').trim()).sort()
+  if (!iso.length) return { restHist, dayLabel: '' }
+  const from = new Date(iso[iso.length - 1] + 'T00:00:00')
+  from.setDate(from.getDate() - 41)
+  for (const k of iso) {
+    const d = new Date(k + 'T00:00:00')
+    if (d < from) continue
+    const v = String(r[k]).trim()
+    if (v === '休') restHist[d.getDay()]++
+    else if (shiftCode(v) === DAY) labels[v] = (labels[v] || 0) + 1
+  }
+  return { restHist, dayLabel: Object.keys(labels).sort((a, b) => labels[b] - labels[a])[0] || '' }
+}
 /** 从导入的班表提取人员：英文名 / 中文名 / 企业名，nightBias 按历史班表的夜班占比统计 */
 export function peopleFromImported(rows: Row[]): Person[] {
   if (!Array.isArray(rows) || !rows.length) return []
@@ -59,7 +75,7 @@ export function peopleFromImported(rows: Row[]): Person[] {
     seen[id] = 1
     out.push({
       en: en || cn, cn: cn || en, org: orgK ? String(r[orgK] || '').trim() || (en || cn) : (en || cn),
-      prefer: '', active: true, nightBias: Math.round(night / work * 100) / 100, need: ''
+      prefer: '', active: true, nightBias: Math.round(night / work * 100) / 100, need: '', ...habitsOf(r, dateKs)
     })
   })
   return out
@@ -73,6 +89,8 @@ export function syncPeopleFromImported(list: Person[], rows: Row[]): number {
       if (!hit.cn) hit.cn = f.cn
       if (!hit.org) hit.org = f.org
       if (typeof hit.nightBias !== 'number') hit.nightBias = f.nightBias
+      hit.restHist = f.restHist                                          // 往期习惯每次按最新导入的班表重算
+      if (f.dayLabel) hit.dayLabel = f.dayLabel
     } else { list.push(f); added++ }
   })
   return added

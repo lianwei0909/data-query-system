@@ -58,6 +58,11 @@ function setN2D(v: boolean) {
   S.saveRules(rules.value, ls)
   toast(v ? '已把小夜约束设为硬约束（可能击穿白班下限）' : '已把小夜约束设为软约束（优先保证人数与双休）')
 }
+function setFixedRest(v: boolean) {
+  rules.value.fixedRest = v
+  S.saveRules(rules.value, ls)
+  toast(v ? '已开启固定轮休：每人每周尽量休同样的两天（参考往期班表）' : '已关闭固定轮休：休息日按人数与连休自由安排')
+}
 function resetRules() {
   rules.value = S.defaultRules()
   S.saveRules(rules.value, ls)
@@ -159,7 +164,7 @@ onBeforeUnmount(() => {
 
       <RulesPanel
         v-model:year="period.year" v-model:month="period.month" :years="years" :period-text="periodText" :rules="rules"
-        @rule="setRule" @n2d="setN2D" @reset="resetRules"
+        @rule="setRule" @n2d="setN2D" @fixed-rest="setFixedRest" @reset="resetRules"
       />
 
       <!-- 人员需求 -->

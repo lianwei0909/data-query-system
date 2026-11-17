@@ -23,7 +23,8 @@ declare const SCH: {
   /** 精确求解（HiGHS 两阶段 MIP）；需先 setSolverFactory 注入求解器 */
   solveExact(input: SchedulerInput, opts?: SolveExactOpts): Promise<SolveResult>
   /** 启发式兜底（构造 + 定向修复 + 模拟退火），同步执行 */
-  solve(input: SchedulerInput): SolveResult
+  /** 启发式求解；opts.seed 固定伪随机种子（同输入同种子结果一致），不传则每次随机 */
+  solve(input: SchedulerInput, opts?: { seed?: number }): SolveResult
   loadHighs(): Promise<unknown>
   openSolver(): Promise<SolverSession>
   buildResult(input: SchedulerInput, a: ShiftCode[][]): ScheduleResult

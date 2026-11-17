@@ -1,13 +1,16 @@
 <script setup lang="ts">
 // 排班结果表：每人每天班次 + 个人合计 + 每日人数统计 + 争议值班轮值 + 图例
+import { computed } from 'vue'
 import SCH from '../../solver/engine.js'
 import type { DayStat, ScheduleResult, SchedulerInput } from '../../solver/types'
 
 const props = defineProps<{ input: SchedulerInput; result: ScheduleResult }>()
 const SUM_HEADS = ['出勤', '休', '白班', '小夜', '最长连班']
-const LEGEND: [string, string][] = [['白班', 'day1'], ['小夜班3', 'night'], ['休', 'rest'], ['假', 'leave']]
-const cellCls = (v: string) => v === '小夜班3' ? 'night' : v === '休' ? 'rest' : v === '白班' ? 'day1' : 'leave'
-const shortName = (v: string) => v === '白班' ? '白' : v === '小夜班3' ? '小夜' : v
+// 白班名称按人沿用往期写法（早班2 / 正常班 / 白班），格子里显示首字
+const dayNames = computed(() => [...new Set(props.input.dayLabel?.length ? props.input.dayLabel : ['白班'])])
+const LEGEND = computed<[string, string][]>(() => [...dayNames.value.map(n => [n, 'day1'] as [string, string]), ['小夜班3', 'night'], ['休', 'rest'], ['假', 'leave']])
+const cellCls = (v: string) => v === '小夜班3' ? 'night' : v === '休' ? 'rest' : dayNames.value.includes(v) ? 'day1' : 'leave'
+const shortName = (v: string) => v === '小夜班3' ? '小夜' : dayNames.value.includes(v) ? v.charAt(0) : v
 const STAT_ROWS: { label: string; get: (s: DayStat) => number; bad: (v: number) => boolean }[] = [
   { label: '白班', get: s => s.day, bad: v => v < props.input.rules.minDay },
   { label: '夜班', get: s => s.night, bad: v => v < props.input.rules.minNight },
@@ -51,6 +54,6 @@ const STAT_ROWS: { label: string; get: (s: DayStat) => number; bad: (v: number) 
     </table>
   </div>
   <div class="sch-legend">
-    <span v-for="[name, cls] in LEGEND" :key="cls" class="sch-legend-item"><i :class="'sch-dot ' + cls"></i><span>{{ name }}</span></span>
+    <span v-for="[name, cls] in LEGEND" :key="name" class="sch-legend-item"><i :class="'sch-dot ' + cls"></i><span>{{ name }}</span></span>
   </div>
 </template>
