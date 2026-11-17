@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 /* 排班求解 Worker：精确求解（HiGHS）+ 启发式兜底都在这里跑，主线程不卡；进度实时回传，主线程可 terminate 取消 */
-import SCH from './scheduler-core.js'
+import SCH from './engine.js'
+import type { SolveResult } from './types'
 
 type HiGHS = { solve: (lp: string, opts: Record<string, unknown>) => any }
 
@@ -38,14 +39,14 @@ self.onmessage = async (ev: MessageEvent) => {
     post({ type: 'progress', stage: 'build' })
     const input = SCH.buildInput(dates, job.people, job.rules, job.carry, base)
     post({ type: 'progress', stage: 'solve' })
-    let res: any, note = ''
+    let res: SolveResult, note = ''
     try {
       const opts: Record<string, number> = {}
       if (job.stage1Limit) opts.stage1Limit = job.stage1Limit
       if (job.stage2Limit != null) opts.stage2Limit = job.stage2Limit
       res = await SCH.solveExact(input, opts)
       if (res && res.engine === 'highs') {
-        note = '精确求解用时 ' + (res.ms / 1000).toFixed(1) + ' 秒' + (res.status === 'Optimal' ? '' : '（已到时间上限，取当前最好方案）')
+        note = '精确求解用时 ' + ((res.ms || 0) / 1000).toFixed(1) + ' 秒' + (res.status === 'Optimal' ? '' : '（已到时间上限，取当前最好方案）')
       }
     } catch (e) {
       // HiGHS 不可用（文件缺失 / 浏览器限制）→ 启发式兜底，仍在本 worker 内执行

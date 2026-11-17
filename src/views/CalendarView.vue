@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // 排班日历：统计卡 / 日历 / 当日出勤 / 本月概览全部由 core 纯函数计算，口径与单测一致
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { shiftState } from '../core/shiftStore'
 import { computeDayAttendance, computeOverview, computeStats } from '../core/stats'
 import { classifyShift, findUserRow, getDateShift, listPeople, matchPerson, personLabel } from '../core/shift'
 import { readLS, writeLS, removeLS } from '../core/storage'
-import { mountBoard, unmountBoard, resizeBoard } from '../legacy/notesBoard'
+import NotesBoard from '../components/NotesBoard.vue'
 
 const router = useRouter()
 const WEEK = ['日', '一', '二', '三', '四', '五', '六']
@@ -116,14 +116,12 @@ const avatarColor = (name: string) => {
 }
 const selWeek = computed(() => WEEK[new Date(sel.value.y, sel.value.m - 1, sel.value.d).getDay()])
 
-onMounted(async () => {
+const calEl = ref<HTMLElement | null>(null)   // 便签放大时对齐日历卡片
+
+onMounted(() => {
   if (viewer.value && data.value.length) setViewer(viewer.value)
-  await nextTick()
-  mountBoard()
-  resizeBoard()
 })
-onBeforeUnmount(() => { unmountBoard(); if (statusTimer) clearTimeout(statusTimer) })
-watch(() => [cal.value.y, cal.value.m], () => nextTick(() => resizeBoard()))
+onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
 </script>
 
 <template>
@@ -172,7 +170,7 @@ watch(() => [cal.value.y, cal.value.m], () => nextTick(() => resizeBoard()))
 
     <div class="content-grid">
       <!-- 日历 -->
-      <div id="calendar" class="calendar-card">
+      <div id="calendar" ref="calEl" class="calendar-card">
         <div class="card-header">
           <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap">
             <div class="card-title">{{ cal.y }}年 {{ cal.m + 1 }}月<span class="card-title-sub">排班总览</span></div>
@@ -247,55 +245,8 @@ watch(() => [cal.value.y, cal.value.m], () => nextTick(() => resizeBoard()))
           <div class="duty-miss">{{ attendance.dutyMiss.length ? '⚠ ' + attendance.dutyMiss.join('；') + '（当天不在岗）' : '' }}</div>
         </div>
 
-        <!-- 便签画板（遗留模块，DOM id 与 v1 一致） -->
-      <!-- 便签画板 -->
-      <div class="canvas-panel board-panel text" id="blank-canvas">
-      <div class="board-head" id="board-head" role="button" tabindex="0" aria-expanded="true" title="点击收起 / 展开便签">
-      <span class="board-head-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
-      <span class="board-head-title">便签</span>
-      <span class="board-head-preview" id="board-preview"></span>
-      <button class="board-head-toggle" id="board-max-btn" type="button" title="放大到日历大小，方便画图">
-      <span id="board-toggle">放大</span>
-      <svg class="ic-expand" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-      <svg class="ic-restore" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-      </button>
-      </div>
-      <div class="board-toolbar">
-      <div class="board-modes">
-      <button class="board-mode-btn" data-mode="draw" type="button">✏️ 画笔</button>
-      <button class="board-mode-btn active" data-mode="text" type="button">📝 文字</button>
-      </div>
-      <div class="board-tools" id="board-tools">
-      <div class="draw-tools" id="draw-tools" style="display:none">
-      <button class="board-eraser" id="board-eraser" type="button" title="橡皮擦">🧽 橡皮擦</button>
-      <label class="board-color-picker" title="调色盘">
-      <input type="color" id="board-color" value="#4f8ef7" aria-label="画笔颜色" />
-      <span class="board-color-swatch" id="board-color-swatch"></span>
-      <span class="board-color-label">调色盘</span>
-      </label>
-      <div class="board-size">
-      粗细
-      <input type="range" id="board-size" min="1" max="24" value="3" aria-label="画笔粗细" />
-      </div>
-      <button class="board-clear" id="board-clear" type="button">🗑 清空</button>
-      </div>
-      <div class="text-tools" id="text-tools">
-      <label class="board-color-picker" title="文字颜色">
-      <input type="color" id="board-text-color" value="#e8eaf0" aria-label="文字颜色" />
-      <span class="board-color-swatch" id="board-text-color-swatch"></span>
-      <span class="board-color-label">文字颜色</span>
-      </label>
-      </div>
-      </div>
-      </div>
-      <div class="board-stage" id="board-stage">
-      <canvas id="board-canvas"></canvas>
-      <div class="board-cursor" id="board-cursor"></div>
-      <textarea id="board-memo" placeholder="在这里写备忘笔记…（内容会自动保存）" spellcheck="false"></textarea>
-      <div class="board-hint" id="board-hint" style="display:none">用画笔在上面自由书写 / 绘图 · Ctrl+V 粘贴图片</div>
-
-      </div>
-      </div>
+        <!-- 便签画板 -->
+        <NotesBoard :anchor="calEl" />
 
         <!-- 本月概览 -->
         <div class="overview-card">

@@ -21,3 +21,16 @@ export function notifyStorageFull(what: string, notify: (msg: string, type?: 'su
   notifiedAt = now
   notify(`⚠ ${what}未能保存：浏览器存储空间已满，请清理后重试`, 'error')
 }
+
+/** 可注入的存储接口（测试用内存实现，页面用 browserStorage） */
+export interface StorageLike {
+  getItem(k: string): string | null
+  setItem(k: string, v: string): void
+  removeItem(k: string): void
+}
+/** 安全的 localStorage：读失败返回 null，写失败抛出（由调用方决定是否提示） */
+export const browserStorage: StorageLike = {
+  getItem: k => readLS(k),
+  setItem: (k, v) => { localStorage.setItem(k, v) },
+  removeItem: k => removeLS(k)
+}

@@ -1,16 +1,18 @@
 // 主线程侧：创建 Worker、转发进度、支持取消；Worker 不可用时回退到主线程求解
 import { ref } from 'vue'
-import SCH from './scheduler-core.js'
+import SCH from './engine.js'
+import type { CustomNeed, Person, Rules, SchedulerInput, ShiftCode, SolveResult } from './types'
 
 export interface SolverJob {
   dates: Date[]
-  people: Record<string, unknown>[]
-  rules: Record<string, unknown>
-  carry: unknown
+  people: Person[]
+  rules: Rules
+  carry: ShiftCode[][] | null
   needNotes: string[]
-  custom: unknown
+  custom: CustomNeed | null
 }
-export interface SolverOutcome { input: any; res: any; note: string }
+export interface SolverOutcome { input: SchedulerInput; res: SolveResult; note: string }
+export interface Cancelled { cancelled: true }
 
 export type ProgressStage = 'build' | 'stage1' | 'stage2' | 'solve' | 'fallback' | 'cancel'
 export const progress = ref<ProgressStage | null>(null)
@@ -25,16 +27,20 @@ const STAGE_TEXT: Record<string, string> = {
 }
 
 let worker: Worker | null = null
+let settleCancel: ((v: Cancelled) => void) | null = null
+/** 取消：终止 Worker（wasm 内存整块释放），正在等待的 solveInWorker 立即以 { cancelled: true } 返回 */
 export function cancelSolve(): void {
   if (worker) { worker.terminate(); worker = null }
   progress.value = 'cancel'
   progressText.value = '已取消'
+  if (settleCancel) { const f = settleCancel; settleCancel = null; f({ cancelled: true }) }
 }
 
-export function solveInWorker(job: SolverJob): Promise<SolverOutcome> {
+export function solveInWorker(job: SolverJob): Promise<SolverOutcome | Cancelled> {
   progress.value = 'build'; progressText.value = STAGE_TEXT.build
   if (typeof Worker === 'undefined') return solveLocally(job)
-  return new Promise<SolverOutcome>((resolve, reject) => {
+  return new Promise<SolverOutcome | Cancelled>((resolve, reject) => {
+    settleCancel = resolve
     try {
       // 经典 Worker（vite worker.format = 'iife'）：Worker 内要用 importScripts 加载 emscripten 版 highs.js，模块 Worker 不支持
       worker = new Worker(new URL('./solver.worker.ts', import.meta.url))
@@ -47,9 +53,11 @@ export function solveInWorker(job: SolverJob): Promise<SolverOutcome> {
       } else if (m.type === 'done') {
         progress.value = null; progressText.value = ''
         w.terminate(); if (worker === w) worker = null
+        settleCancel = null
         resolve({ input: m.input, res: m.res, note: m.note || '' })
       } else if (m.type === 'error') {
         progress.value = null; w.terminate(); if (worker === w) worker = null
+        settleCancel = null
         reject(new Error(m.message || '求解失败'))
       }
     }
@@ -76,7 +84,7 @@ async function solveLocally(job: SolverJob): Promise<SolverOutcome> {
   const input = SCH.buildInput(job.dates, job.people, job.rules, job.carry, base)
   try {
     const res = await SCH.solveExact(input)
-    const note = res.engine === 'highs' ? '精确求解用时 ' + (res.ms / 1000).toFixed(1) + ' 秒' : ''
+    const note = res.engine === 'highs' ? '精确求解用时 ' + ((res.ms || 0) / 1000).toFixed(1) + ' 秒' : ''
     progress.value = null
     return { input, res, note }
   } catch (e) {

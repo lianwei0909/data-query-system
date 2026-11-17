@@ -92,6 +92,6 @@ async function doExport() {
 
 <style scoped>
 .stat-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.stat-error .stat-number { color: var(--red); }
+.stat-error .stat-number { color: var(--red-text); }
 .page-intro h2 { color: var(--text-primary); }
 </style>

@@ -20,6 +20,12 @@
   --shadow:none;--shadow-hover:none;
   --day-bg:rgba(91,140,255,.16);--night-bg:rgba(255,180,84,.16);
   --rest-bg:rgba(255,107,107,.14);--leave-bg:rgba(176,139,255,.16);
+  /* 文字色：班次色 / 状态色直接当文字时用这一组（WCAG AA：在卡片与各自浅色底上 ≥ 4.5） */
+  --day-text:#759EFF;--night-text:#FFB454;--rest-text:#FF7575;--leave-text:#B390FF;--green-text:#3DDC97;--red-text:#FF7575;--orange-text:#FFB454;--purple-text:#B390FF;--gold-text:#F7C84F;
+  --ok-text:#6EE7B7;--err-text:#FCA5A5;--warn-text:#F7C84F;--info-text:#93C5FD;
+  --accent-text:#759EFF;
+  /* 白字所在的品牌渐变（头像、今日日期、主按钮）：两端色标与白字对比度都 ≥ 4.5 */
+  --brand-a:#3668F6;--brand-b:#8452F5;--btn-a:#4F46E5;--btn-b:#5E61F1;--avatar-text:#0F172A;
 }
 :root[data-theme="paper"]{
   color-scheme:light;
@@ -37,9 +43,13 @@
   --orange:#E8892B;--orange-bg:rgba(232,137,43,.12);
   --purple:#8B5CF6;--purple-bg:rgba(139,92,246,.10);
   --gold:#B8860B;--gold-bg:rgba(184,134,11,.12);
-  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#6B778C;
+  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#647083;
   --shadow:0 4px 16px rgba(20,32,64,.06);
   --shadow-hover:0 6px 22px rgba(20,32,64,.10);
   --day-bg:rgba(59,108,246,.10);--night-bg:rgba(232,137,43,.12);
   --rest-bg:rgba(229,72,77,.10);--leave-bg:rgba(139,92,246,.10);
+  /* 文字色：亮色底上班次色太浅，单独加深到 ≥ 4.5 */
+  --day-text:#144FF4;--night-text:#975410;--rest-text:#C01B21;--leave-text:#6F35F4;--green-text:#0C6F4E;--red-text:#C01B21;--orange-text:#975410;--purple-text:#6F35F4;--gold-text:#7E5C08;
+  --ok-text:#0C6F4E;--err-text:#C01B21;--warn-text:#7E5C08;--info-text:#144FF4;
+  --accent-text:#144FF4;
 }

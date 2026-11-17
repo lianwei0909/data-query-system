@@ -92,3 +92,73 @@ export function importShiftRows(newRows: ShiftRow[]): { merged: ShiftRow[]; hadO
   shiftState.version++
   return { merged, hadOld: old.length > 0 }
 }
+
+// ── 导入前差异预览：与 mergeShiftRows 同一套匹配规则（同一个人按日期合并，新文件里的空格不清空旧值） ──
+export interface ShiftChange { person: string; date: string; from: string; to: string }
+export interface ShiftDiff {
+  /** 新文件里有、现有班表里没有的人 */
+  newPeople: string[]
+  /** 已有人员的空白日期被填上的格数（含新日期） */
+  added: number
+  /** 已有班次被改成另一个班次的明细（按日期、人员排序） */
+  changed: ShiftChange[]
+  /** 与现有班表完全相同的格数 */
+  unchanged: number
+  /** 新文件里识别不出人员（没有英文名 / 中文名 / 企业名）的行数，这些行导入后无法按人合并 */
+  unnamed: number
+  /** 新文件覆盖的日期范围 */
+  range: { from: string; to: string; days: number } | null
+  /** 其中现有班表里还没有任何班次的日期数 */
+  newDates: number
+}
+const cellText = (v: unknown) => String(v ?? '').trim()
+/** 人员显示名：中文名（英文名） */
+export function shiftRowLabel(r: ShiftRow): string {
+  const keys = Object.keys(r || {})
+  const val = (re: RegExp) => { for (const k of keys) if (re.test(k)) { const v = cellText(r[k]); if (v) return v } return '' }
+  const cn = val(/中文|姓名/), en = val(/英文/)
+  return cn && en && cn !== en ? `${cn}（${en}）` : (cn || en || val(/企业/))
+}
+export function diffShiftRows(oldRows: ShiftRow[], newRows: ShiftRow[]): ShiftDiff {
+  const old = new Map<string, ShiftRow>()
+  const oldDates = new Set<string>()
+  for (const r of oldRows || []) {
+    const k = shiftRowKey(r)
+    if (!k) continue
+    old.set(k, { ...(old.get(k) || {}), ...r })
+    Object.keys(r).forEach(f => { if (isYmdKey(f) && cellText(r[f])) oldDates.add(f) })   // 整列为空的日期不算已有
+  }
+  const out: ShiftDiff = { newPeople: [], added: 0, changed: [], unchanged: 0, unnamed: 0, range: shiftDateRange(newRows || []), newDates: 0 }
+  const seenNew = new Set<string>()
+  for (const r of newRows || []) {
+    const k = shiftRowKey(r)
+    if (!k) { out.unnamed++; continue }
+    const o = old.get(k)
+    if (!o) {
+      if (!seenNew.has(k)) { seenNew.add(k); out.newPeople.push(shiftRowLabel(r)) }
+      continue
+    }
+    for (const f of Object.keys(r)) {
+      if (!isYmdKey(f)) continue
+      const to = cellText(r[f])
+      if (!to) continue                                  // 空格不会清空旧值
+      const from = cellText(o[f])
+      if (!from) out.added++
+      else if (from === to) out.unchanged++
+      else out.changed.push({ person: shiftRowLabel(o) || shiftRowLabel(r), date: f, from, to })
+    }
+  }
+  if (out.range) {
+    const s = new Set<string>()
+    for (const r of newRows) Object.keys(r || {}).forEach(f => { if (isYmdKey(f) && cellText(r[f]) && !oldDates.has(f)) s.add(f) })
+    out.newDates = s.size
+  }
+  out.changed.sort((a, b) => a.date.localeCompare(b.date) || a.person.localeCompare(b.person, 'zh'))
+  return out
+}
+/** 整体替换班表（撤销导入用）；超出存储限制时抛出 QuotaExceededError */
+export function replaceShiftRows(rows: ShiftRow[]): void {
+  localStorage.setItem(SHIFT_KEY, JSON.stringify(rows))
+  shiftState.rows = rows
+  shiftState.version++
+}

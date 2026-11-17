@@ -27,6 +27,8 @@
     "src/**/*.d.ts",
     "src/**/*.vue",
     "tests/**/*.ts",
-    "vite.config.ts"
+    "vite.config.ts",
+    "e2e/**/*.ts",
+    "playwright.config.ts"
   ]
 }

@@ -15,7 +15,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .sidebar-section-label{font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;padding:0 8px;margin-bottom:8px}
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:background .15s;margin-bottom:3px;position:relative;text-decoration:none;color:var(--text-secondary)}
 .nav-item:hover{background:var(--hover);color:var(--text-primary)}
-.nav-item.active{background:var(--accent-glow);color:var(--accent)}
+.nav-item.active{background:var(--accent-glow);color:var(--accent-text)}
 .nav-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
 .nav-icon.green{background:var(--green-bg)}.nav-icon.red{background:var(--red-bg)}.nav-icon.purple{background:var(--purple-bg)}.nav-icon.gold{background:var(--gold-bg)}.nav-icon.blue{background:var(--accent-glow)}.nav-icon.orange{background:var(--orange-bg)}
 .nav-label{font-size:14px;font-weight:500;flex:1}
@@ -50,8 +50,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 /* 顶栏右侧：查看谁的班表 */
 .topbar-who{margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
 .topbar-who .who-label{font-size:13px;color:var(--text-secondary);white-space:nowrap}
-.who-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
-.who-avatar.miss{background:rgba(247,95,95,.25);color:#fca5a5}
+.who-avatar{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--brand-a),var(--brand-b));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.who-avatar.miss{background:var(--red-bg);color:var(--err-text)}
 .who-input{width:150px;background:var(--card-bg2);color:var(--text-primary);border:1px solid var(--input-border);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
 .who-input:hover{border-color:var(--input-border-hover)}
 .who-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
@@ -60,12 +60,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .who-clear:hover{color:var(--text-primary);border-color:var(--input-border-hover)}
 .who-status{font-size:12px;color:var(--text-muted);max-width:210px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who-status:empty{display:none}
-.who-status.ok{color:#6ee7b7}
-.who-status.warn{color:#f7c84f}
-.who-status.err{color:#fca5a5}
+.who-status.ok{color:var(--ok-text)}
+.who-status.warn{color:var(--warn-text)}
+.who-status.err{color:var(--err-text)}
 .user-card{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:background .15s}
 .user-card:hover{background:var(--hover)}
-.user-avatar-sm{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.user-avatar-sm{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--brand-a),var(--brand-b));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
 .user-info-sm{flex:1;min-width:0}
 .user-name-sm{font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .user-role-sm{font-size:12px;color:var(--text-muted)}
@@ -136,7 +136,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 }
 .sub-page-body .file-label:hover{
   border-color:var(--accent);
-  color:var(--accent);
+  color:var(--accent-text);
   background:rgba(102,126,234,.08)
 }
 
@@ -190,7 +190,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
   display:inline-flex;align-items:center;gap:6px
 }
 .sub-page-body .btn-primary{
-  background:linear-gradient(135deg,#4f46e5,#6366f1);
+  background:linear-gradient(135deg,var(--btn-a),var(--btn-b));
   color:#fff;
   box-shadow:0 4px 20px rgba(79,70,229,.35)
 }
@@ -212,7 +212,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 }
 .sub-page-body .page-btn:hover:not(:disabled){
   background:rgba(102,126,234,.1);
-  border-color:var(--accent);color:var(--accent)
+  border-color:var(--accent);color:var(--accent-text)
 }
 .sub-page-body .page-btn:disabled{opacity:.35;cursor:not-allowed}
 .sub-page-body .page-info{color:var(--text-muted);font-size:13px}
@@ -278,7 +278,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 }
 .sub-page-body .file-label:hover{
   border-color:var(--accent);
-  color:var(--accent);
+  color:var(--accent-text);
   background:rgba(102,126,234,.08)
 }
 
@@ -292,14 +292,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .sub-page-body .table-section[style*="block"]{display:block!important}
 .sub-page-body .section-title{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:18px;display:flex;align-items:center;gap:10px;justify-content:center}
 .sub-page-body .section-title .count{
-  background:rgba(102,126,234,.1);color:var(--accent);
+  background:rgba(102,126,234,.1);color:var(--accent-text);
   font-size:12px;padding:3px 12px;border-radius:999px;font-weight:600
 }
 .sub-page-body .action-bar{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:20px}
 .sub-page-body .btn-import{
   padding:10px 36px;border:none;border-radius:10px;
   font-size:14px;font-weight:600;cursor:pointer;transition:all .25s ease;
-  background:linear-gradient(135deg,#4f46e5,#6366f1);
+  background:linear-gradient(135deg,var(--btn-a),var(--btn-b));
   color:#fff;box-shadow:0 4px 20px rgba(79,70,229,.35)
 }
 .sub-page-body .btn-import:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(79,70,229,.5)}
@@ -312,8 +312,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
   backdrop-filter:blur(16px)
 }
 .sub-page-body .notification.show{transform:translateX(0)}
-.sub-page-body .notification.success{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#6ee7b7}
-.sub-page-body .notification.error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#fca5a5}
+.sub-page-body .notification.success{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:var(--ok-text)}
+.sub-page-body .notification.error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:var(--err-text)}
 
 /* STATS */
 .stats-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
@@ -347,12 +347,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .board-modes{display:flex;gap:6px}
 .board-mode-btn{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit}
 .board-mode-btn:hover{color:var(--text-primary)}
-.board-mode-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+.board-mode-btn.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent-text)}
 .board-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .board-tools.hidden{display:none}
 .board-eraser{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
 .board-eraser:hover{color:var(--text-primary);border-color:var(--text-muted)}
-.board-eraser.active{background:var(--accent-glow);color:var(--accent);border-color:var(--accent)}
+.board-eraser.active{background:var(--accent-glow);color:var(--accent-text);border-color:var(--accent)}
 .board-color-picker{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:8px;transition:all .15s}
 .board-color-picker:hover{border-color:var(--text-muted)}
 .board-color-picker input[type=color]{position:absolute;width:0;height:0;opacity:0;pointer-events:none;border:none;padding:0}
@@ -362,7 +362,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .board-size input[type=range]{width:90px;accent-color:var(--accent);cursor:pointer}
 .draw-tools{display:flex;align-items:center;gap:12px;flex-wrap:nowrap}
 .text-tools{display:flex;align-items:center;gap:12px}
-.board-img{position:absolute;z-index:6;cursor:grab;border:1px solid transparent;border-radius:6px;line-height:0}
+.board-img{position:absolute;z-index:6;cursor:grab;touch-action:none;user-select:none;border:1px solid transparent;border-radius:6px;line-height:0}
 .board-img:hover{border-color:rgba(255,255,255,.4)}
 .board-img.del-mode{cursor:default}
 .board-img img{display:block;width:100%;height:auto;border-radius:6px;pointer-events:none}
@@ -371,7 +371,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .board-img-del{position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:50%;border:none;background:var(--red);color:#fff;font-size:13px;line-height:20px;text-align:center;cursor:pointer;padding:0;display:none;z-index:7}
 .board-img:hover .board-img-del{display:block}
 .board-clear{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap}
-.board-clear:hover{color:var(--red);border-color:var(--red)}
+.board-clear:hover{color:var(--red-text);border-color:var(--red)}
 .board-stage{flex:1;position:relative;min-height:0}
 .board-head{display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);transition:background .15s}
 .board-head:hover{background:var(--hover)}
@@ -381,7 +381,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .board-head-icon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:var(--gold-bg);flex-shrink:0}
 .board-head-title{font-size:14px;font-weight:600;color:var(--text-primary);flex-shrink:0}
 .board-head-preview{flex:1;min-width:0;font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.board-head-toggle{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--accent);font-size:12px;font-family:inherit;cursor:pointer;flex-shrink:0;transition:all .15s;white-space:nowrap}
+.board-head-toggle{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--accent-text);font-size:12px;font-family:inherit;cursor:pointer;flex-shrink:0;transition:all .15s;white-space:nowrap}
 .board-head-toggle:hover{background:var(--accent-glow);border-color:var(--accent)}
 .board-head-toggle .ic-restore{display:none}
 .board-panel:not(.collapsed) .board-head-toggle .ic-expand{display:none}
@@ -428,17 +428,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .cal-cell.empty{cursor:default}
 .cal-cell.selected{background:var(--accent-glow);box-shadow:inset 0 0 0 1.5px var(--accent)}
 .cal-date{font-size:24px;font-weight:500;color:var(--text-primary);width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:50%;flex-shrink:0;line-height:1;font-variant-numeric:tabular-nums}
-.cal-cell.today .cal-date{background:linear-gradient(135deg,var(--accent),var(--purple));color:#fff;font-weight:700;box-shadow:0 0 6px rgba(79,142,247,.45)}
+.cal-cell.today .cal-date{background:linear-gradient(135deg,var(--brand-a),var(--brand-b));color:#fff;font-weight:700;box-shadow:0 0 6px rgba(79,142,247,.45)}
 .cal-cell.other-month .cal-date{color:var(--text-muted)}
 /* 日历班次：短标签（白 / 夜 / 休 / 假）+ 格子底部色条；悬停显示完整班次名 */
 .cal-shift{font-size:16px;font-weight:700;line-height:1;padding:6px 13px;border-radius:6px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
-.cal-shift.s-day{background:var(--day-bg);color:var(--day)}
-.cal-shift.s-night{background:var(--night-bg);color:var(--night)}
-.cal-shift.s-rest{background:var(--rest-bg);color:var(--rest)}
-.cal-shift.s-leave{background:var(--leave-bg);color:var(--leave)}
+.cal-shift.s-day{background:var(--day-bg);color:var(--day-text)}
+.cal-shift.s-night{background:var(--night-bg);color:var(--night-text)}
+.cal-shift.s-rest{background:var(--rest-bg);color:var(--rest-text)}
+.cal-shift.s-leave{background:var(--leave-bg);color:var(--leave-text)}
 .cal-shift.s-none{background:transparent;color:var(--text-muted);font-weight:500;font-size:14px;padding:5px 6px}
 /* 月份标题旁的引导：本月后面几天还没排班 / 没导入班表 */
-.cal-hint{font-size:13px;color:var(--gold);background:var(--gold-bg);border:1px solid rgba(247,200,79,.25);border-radius:999px;padding:3px 10px;cursor:pointer;white-space:nowrap;font-weight:500}
+.cal-hint{font-size:13px;color:var(--gold-text);background:var(--gold-bg);border:1px solid rgba(247,200,79,.25);border-radius:999px;padding:3px 10px;cursor:pointer;white-space:nowrap;font-weight:500}
 .cal-hint:hover{border-color:rgba(247,200,79,.6)}
 .cal-hint:empty{display:none}
 
@@ -446,7 +446,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .detail-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
 .detail-date{font-size:12px;color:var(--text-secondary);margin-top:2px;font-weight:400}
 .attendance-count{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--accent-glow);border:1px solid transparent;border-radius:var(--radius-sm)}
-.attendance-count-num{font-size:26px;font-weight:800;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
+.attendance-count-num{font-size:26px;font-weight:800;color:var(--accent-text);line-height:1;font-variant-numeric:tabular-nums}
 .attendance-count-label{font-size:14px;color:var(--text-primary);font-weight:600}
 .attendance-mini-stats{display:flex;gap:8px;font-size:12px;color:var(--text-secondary)}
 .mini-stat-dot{width:5px;height:5px;border-radius:50%}
@@ -457,19 +457,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .shift-indicator.day{background:var(--accent)}.shift-indicator.night{background:var(--orange)}
 .shift-section-title{font-size:14px;font-weight:600;color:var(--text-secondary);flex:1}
 .shift-count-badge{font-size:12px;padding:1px 6px;border-radius:999px;font-weight:600}
-.shift-count-badge.day{background:var(--accent-glow);color:var(--accent)}
-.shift-count-badge.night{background:var(--orange-bg);color:var(--orange)}
+.shift-count-badge.day{background:var(--accent-glow);color:var(--accent-text)}
+.shift-count-badge.night{background:var(--orange-bg);color:var(--orange-text)}
 .staff-list{display:flex;flex-direction:column;gap:6px}
 .staff-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card-bg2);border-radius:var(--radius-sm);border:1px solid var(--border-light);transition:border-color .12s;overflow:hidden}
 .staff-item:hover{border-color:var(--border)}
 .staff-item.me{border-color:rgba(79,142,247,.55);background:rgba(79,142,247,.08)}
 .staff-tags{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.staff-duty{font-size:12px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--gold-bg);color:var(--gold);white-space:nowrap}
-.staff-me{font-size:12px;color:var(--accent);margin-left:6px;font-weight:500}
+.staff-duty{font-size:12px;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--gold-bg);color:var(--gold-text);white-space:nowrap}
+.staff-me{font-size:12px;color:var(--accent-text);margin-left:6px;font-weight:500}
 .staff-empty{font-size:12px;color:var(--text-muted);padding:6px 2px}
-.duty-miss{font-size:12px;color:var(--gold);line-height:1.5}
+.duty-miss{font-size:12px;color:var(--gold-text);line-height:1.5}
 .duty-miss:empty{display:none}
-.staff-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.staff-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--avatar-text);flex-shrink:0}
 .staff-avatar.blue{background:linear-gradient(135deg,#4f8ef7,#6fa3f8)}
 .staff-avatar.green{background:linear-gradient(135deg,#2dd4a0,#3de8b0)}
 .staff-avatar.purple{background:linear-gradient(135deg,#a07ff7,#b89bff)}
@@ -483,8 +483,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 .staff-name{font-size:14px;font-weight:500;color:var(--text-primary);flex:1}
 .staff-dept{font-size:12px;color:var(--text-muted)}
 .staff-shift-tag{font-size:12px;padding:2px 6px;border-radius:4px;font-weight:600;white-space:nowrap}
-.staff-shift-tag.day{background:var(--day-bg);color:var(--day)}
-.staff-shift-tag.night{background:var(--night-bg);color:var(--night)}
+.staff-shift-tag.day{background:var(--day-bg);color:var(--day-text)}
+.staff-shift-tag.night{background:var(--night-bg);color:var(--night-text)}
 .divider{height:1px;background:var(--border)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -494,14 +494,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 /* ====== 通知 ====== */
 .notification{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-120%);padding:12px 24px;border-radius:10px;font-size:13px;font-weight:600;z-index:10000;transition:transform .3s cubic-bezier(.16,1,.3,1);max-width:90vw;white-space:pre-wrap}
 .notification.show{transform:translateX(-50%) translateY(0)}
-.notification.success{background:rgba(45,212,160,.18);border:1px solid rgba(45,212,160,.5);color:#6ee7b7}
-.notification.error{background:rgba(247,95,95,.18);border:1px solid rgba(247,95,95,.5);color:#fca5a5}
-.notification.info{background:rgba(79,142,247,.18);border:1px solid rgba(79,142,247,.5);color:#93c5fd}
+.notification.success{background:rgba(45,212,160,.18);border:1px solid rgba(45,212,160,.5);color:var(--ok-text)}
+.notification.error{background:rgba(247,95,95,.18);border:1px solid rgba(247,95,95,.5);color:var(--err-text)}
+.notification.info{background:rgba(79,142,247,.18);border:1px solid rgba(79,142,247,.5);color:var(--info-text)}
 
 
 /* 子页面：首次加载占位与切换淡入（避免「空白 → 出现」的闪烁） */
 .sub-loading{text-align:center;padding:60px;color:var(--text-muted);font-size:14px}
-.sub-loading.error{color:#ef4444}
+.sub-loading.error{color:var(--err-text)}
 .sub-page-body{animation:subFade .18s ease-out both}
 @keyframes subFade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 #page-sub.is-loading{opacity:.55;transition:opacity .12s}
@@ -575,3 +575,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei
 #dc-loader .dc-loader-text{margin-top:25px;font-size:1.2em;color:rgba(255,255,255,.85);letter-spacing:1px}
 @keyframes dcSpin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion: reduce){#dc-loader .dc-spinner{animation-duration:3s}}
+
+/* 触屏（粗指针）：可点按钮至少 44px；便签图片的删除 / 缩放手柄常显（触屏没有 hover，否则删不掉图片） */
+@media (pointer:coarse){
+  .cal-nav-btn,.who-clear{width:44px;height:44px}
+  .board-head-toggle{min-height:40px;padding:8px 12px}
+  .board-img-del{display:block;width:28px;height:28px;line-height:28px;font-size:16px;top:-12px;right:-12px}
+  .board-img-resize{display:block;width:24px;height:24px;right:-10px;bottom:-10px}
+}
