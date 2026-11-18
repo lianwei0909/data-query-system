@@ -179,11 +179,10 @@ onBeforeUnmount(() => {
             <button type="button" id="btn-run" class="btn-primary-main" :disabled="running" @click="primary">
               {{ running ? '排班中…' : (people.length ? '⚡ 生成排班' : '去导入班表') }}
             </button>
+            <button type="button" id="btn-again" class="btn-secondary-action" :disabled="running" @click="run">🔄 换个排法</button>
             <details class="more-menu">
               <summary aria-label="更多操作">⋯</summary>
               <div class="menu-items">
-                <button type="button" id="btn-again" :disabled="running" @click="run">🔄 换个排法</button>
-                <button type="button" @click="doExport">📥 导出 Excel</button>
                 <button type="button" id="btn-restore" @click="restorePeople">按导入班表重新提取人员</button>
               </div>
             </details>

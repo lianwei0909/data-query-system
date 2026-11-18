@@ -149,15 +149,23 @@
   box-shadow: 0 4px 14px var(--accent-glow);
 }
 .page-scheduler .btn-primary-main:disabled { opacity: .55; cursor: not-allowed; }
+/* 「换个排法」与主按钮同行：次要按钮样式，仍保留原 id */
+.page-scheduler .btn-secondary-action {
+  flex: 0 0 auto; height: 46px; padding: 0 14px; white-space: nowrap;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2);
+  color: var(--text-primary); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.page-scheduler .btn-secondary-action:hover { border-color: var(--accent); color: var(--accent-text); }
+.page-scheduler .btn-secondary-action:disabled { opacity: .55; cursor: not-allowed; }
 .page-scheduler .more-menu { position: relative; flex: 0 0 42px; }
 .page-scheduler .more-menu > summary {
-  list-style: none; height: 42px; display: flex; align-items: center; justify-content: center;
+  list-style: none; height: 46px; display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2);
   color: var(--text-primary); font-size: 18px; cursor: pointer;
 }
 .page-scheduler .more-menu > summary::-webkit-details-marker { display: none; }
 .page-scheduler .menu-items {
-  position: absolute; right: 0; bottom: 48px; z-index: 20; min-width: 210px; padding: 6px;
+  position: absolute; right: 0; bottom: 54px; z-index: 20; min-width: 210px; padding: 6px;
   background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-hover);
 }
 .page-scheduler .menu-items button {
@@ -200,11 +208,14 @@
 .page-scheduler .sch-dot.night { background: var(--night); }
 .page-scheduler .sch-dot.rest { background: var(--rest); }
 .page-scheduler .sch-dot.leave { background: var(--leave); }
+/* 结果区导出：放大成主操作，用与主按钮相同的渐变白字（对比度已验证） */
 .page-scheduler .sch-export {
-  margin-left: auto; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--card-bg2); color: var(--text-secondary); font-size: 12px; font-family: inherit; cursor: pointer;
+  margin-left: auto; padding: 9px 18px; border: none; border-radius: 10px; white-space: nowrap;
+  background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff;
+  font-size: 13.5px; font-weight: 700; font-family: inherit; cursor: pointer;
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
-.page-scheduler .sch-export:hover { border-color: var(--accent); color: var(--accent-text); }
+.page-scheduler .sch-export:hover { box-shadow: 0 6px 20px var(--accent-glow); }
 .page-scheduler .sch-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
 .page-scheduler .sch-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
 .page-scheduler .sch-table th {
@@ -214,15 +225,18 @@
 .page-scheduler .sch-head-week th { font-size: 10.5px; color: var(--text-muted); padding: 2px 3px; }
 .page-scheduler .sch-table th.sch-we { color: var(--red-text); }
 .page-scheduler .sch-table th.month-start { border-left: 2px solid var(--accent); }
+/* 首列内容（表头 / 人名 / 表底标签）统一居中 */
 .page-scheduler .sch-name-col {
   position: sticky; left: 0; z-index: 3; background: var(--card-bg); min-width: 110px; white-space: nowrap;
-  text-align: left; padding: 4px 8px; color: var(--text-primary); border-right: 1px solid var(--border);
+  text-align: center; padding: 4px 8px; color: var(--text-primary); border-right: 1px solid var(--border);
 }
 .page-scheduler .sch-name-avatar {
   display: inline-flex; width: 22px; height: 22px; border-radius: 50%; align-items: center; justify-content: center;
-  background: var(--accent-glow); color: var(--accent-text); font-size: 11px; font-weight: 700; margin-right: 5px;
+  background: var(--accent-glow); color: var(--accent-text); font-size: 11px; font-weight: 700;
+  margin-right: 5px; vertical-align: middle;
 }
-.page-scheduler .sch-name-text b { font-size: 12px; color: var(--text-primary); }
+.page-scheduler .sch-name-text { display: inline-block; vertical-align: middle; text-align: center; }
+.page-scheduler .sch-name-text b { display: block; font-size: 12px; color: var(--text-primary); }
 .page-scheduler .sch-name-text small { display: block; font-size: 10px; color: var(--text-muted); }
 .page-scheduler .sch-sum-col {
   background: var(--card-bg2); color: var(--text-primary); min-width: 190px; font-weight: 700;
