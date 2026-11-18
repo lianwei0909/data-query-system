@@ -3,6 +3,7 @@
 import SCH from './engine.js'
 import { DAY, NIGHT, OFF, type CarryInfo, type Person, type Rules, type ShiftCode } from './types'
 import type { StorageLike } from '../core/storage'
+import { resolveNameCols } from '../core/shift'
 
 export type Row = Record<string, unknown>
 export const LS_PEOPLE = 'scheduler_people'
@@ -57,15 +58,16 @@ export function peopleFromImported(rows: Row[]): Person[] {
   const keySet: Record<string, 1> = {}
   rows.forEach(r => { if (r && typeof r === 'object') Object.keys(r).forEach(k => { keySet[k] = 1 }) })
   const keys = Object.keys(keySet)
-  const pick = (re: RegExp) => keys.find(k => re.test(k)) ?? null
-  const enK = pick(/英文/), cnK = pick(/中文|姓名/), orgK = pick(/企业/)
-  if (!enK && !cnK) return []
   const dateKs = keys.filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) || /^\d{1,2}月\d{1,2}[日号]$/.test(k))
   const out: Person[] = [], seen: Record<string, 1> = {}
   rows.forEach(r => {
     if (!r || typeof r !== 'object') return
-    const en = enK ? String(r[enK] || '').trim() : '', cn = cnK ? String(r[cnK] || '').trim() : ''
-    if (enK && !/^[A-Za-z][A-Za-z0-9._\- ]*$/.test(en)) return          // 表尾值班 / 说明行没有英文名
+    // 姓名列逐行识别（与日历同一口径）：原来取「所有行列名的并集」里第一个带「英文」的列，
+    // 旧格式行（列名 `排班原则…_1` / '' / _1）没有这一列，整行被跳过，排班名单里少人
+    const nc = resolveNameCols(r)
+    const orgK = Object.keys(r).find(k => k.includes('企业')) ?? null
+    const en = nc.eng !== null ? String(r[nc.eng] || '').trim() : '', cn = nc.cn !== null ? String(r[nc.cn] || '').trim() : ''
+    if (nc.eng !== null && !/^[A-Za-z][A-Za-z0-9._\- ]*$/.test(en)) return          // 表尾值班 / 说明行没有英文名
     if (cn && /(班|休|假|值班|备注|合计|出勤)\s*\d*$/.test(cn)) return
     const id = (en || cn).toLowerCase()
     if (!id || seen[id]) return
@@ -74,7 +76,7 @@ export function peopleFromImported(rows: Row[]): Person[] {
     if (!work) return                                                    // 没有任何班次的行不是人
     seen[id] = 1
     out.push({
-      en: en || cn, cn: cn || en, org: orgK ? String(r[orgK] || '').trim() || (en || cn) : (en || cn),
+      en: en || cn, cn: cn || en, org: orgK !== null ? String(r[orgK] || '').trim() || (en || cn) : (en || cn),
       prefer: '', active: true, nightBias: Math.round(night / work * 100) / 100, need: '', ...habitsOf(r, dateKs)
     })
   })
@@ -156,18 +158,23 @@ export function carryFromImported(rows: Row[], people: Person[], dates: Date[]):
   if (!Array.isArray(rows) || !rows.length) return null
   const prevDays: Date[] = []
   for (let i = CARRY_DAYS; i >= 1; i--) { const d = new Date(dates[0].getTime()); d.setDate(d.getDate() - i); prevDays.push(d) }
-  const keys = Object.keys(rows[0])
+  const keySet = new Set<string>()
+  rows.forEach(r => { if (r && typeof r === 'object') Object.keys(r).forEach(k => keySet.add(k)) })
+  const keys = [...keySet]                                               // 所有行的列并集：第一行可能是旧格式 / 只覆盖部分日期
   const colOf = prevDays.map(d => keys.find(k => dateKeyMatch(k, d)) ?? null)
   if (!colOf[colOf.length - 1]) return null                              // 导入的班表必须包含本期首日的前一天
-  let nameKeys = keys.filter(k => /(英文|中文|企业|姓名|名字)/.test(k))
-  if (!nameKeys.length) nameKeys = keys.filter(k => colOf.indexOf(k) < 0).slice(0, 3)
   let found = 0
   const carry = people.map(p => {
     let row: Row | null = null
     for (let r = 0; r < rows.length && !row; r++) {
-      for (const nk of nameKeys) {
-        const v = String(rows[r][nk] || '').trim()
-        if (v && (v.toLowerCase() === String(p.en).toLowerCase() || v === p.cn || v === p.org)) { row = rows[r]; break }
+      const cur = rows[r]
+      if (!cur || typeof cur !== 'object') continue
+      const nc = resolveNameCols(cur)                                    // 姓名列逐行识别
+      const orgK = Object.keys(cur).find(k => k.includes('企业')) ?? null
+      for (const nk of [nc.eng, nc.cn, orgK]) {
+        if (nk === null) continue
+        const v = String(cur[nk] || '').trim()
+        if (v && (v.toLowerCase() === String(p.en).toLowerCase() || v === p.cn || v === p.org)) { row = cur; break }
       }
     }
     if (!row) return [] as ShiftCode[]

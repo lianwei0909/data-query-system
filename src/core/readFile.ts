@@ -56,21 +56,28 @@ export async function readTableFileAsSheet(file: File): Promise<Record<string, u
  */
 export function normalizeScheduleExport(json: Record<string, unknown>[], refDate: Date = new Date()): ShiftRow[] | null {
   if (!Array.isArray(json) || json.length < 2) return null
-  const head = json[0]
-  const keys = Object.keys(head || {})
-  const find = (label: string) => keys.find(k => String(head[k] ?? '').trim() === label)
-  const kEn = find('英文名'), kCn = find('中文名'), kOrg = find('企业名')
-  if (!kEn || !kCn) return null
+  // 表头行不一定是 json[0]：首行上方可能还有标题 / 说明行，前 5 行里找「英文名」「中文名」都在的那一行
+  let hi = -1, kEn: string | null = null, kCn: string | null = null, kOrg: string | null = null
+  for (let i = 0; i < Math.min(5, json.length - 1) && hi < 0; i++) {
+    const head = json[i] || {}
+    const ks = Object.keys(head)
+    const find = (label: string) => ks.find(k => String(head[k] ?? '').trim() === label) ?? null
+    const en = find('英文名'), cn = find('中文名') ?? find('姓名')
+    if (en !== null && cn !== null) { hi = i; kEn = en; kCn = cn; kOrg = find('企业名') }
+  }
+  // 注意：列名可能是空字符串 ''（Excel 第一行该格是空串时 SheetJS 这样命名），只能用 null 判断「没找到」
+  if (hi < 0 || kEn === null || kCn === null) return null
+  const keys = Object.keys(json[hi])
   const dateKeys = keys.filter(k => !!parseDateKey(k))
   if (!dateKeys.length) return null
   const dateMap = inferDateKeys(dateKeys, refDate)
   const out: ShiftRow[] = []
-  for (let i = 1; i < json.length; i++) {
+  for (let i = hi + 1; i < json.length; i++) {
     const r = json[i] || {}
     const en = String(r[kEn] ?? '').trim()
     if (!isEnglishName(en)) continue        // 跳过表头残留、备注、统计、图例、值班行
     const row: ShiftRow = { 英文名: en, 中文名: String(r[kCn] ?? '').trim() }
-    if (kOrg) row['企业名'] = String(r[kOrg] ?? '').trim()
+    if (kOrg !== null) row['企业名'] = String(r[kOrg] ?? '').trim()
     for (const [k, ymd] of Object.entries(dateMap)) row[ymd] = r[k]
     out.push(row)
   }

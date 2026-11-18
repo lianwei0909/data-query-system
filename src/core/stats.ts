@@ -24,8 +24,7 @@ export function computeStats(data: ShiftRow[], viewer: string, today: Date): Sta
 
   // ② 今日出勤人数：与「当日出勤」明细同一口径
   if (data.length) {
-    const nc = resolveNameCols(data[0])
-    const present = data.filter(r => isPersonRow(r, nc) && isOnDuty(getDateShift(r, y, m, d))).length
+    const present = data.filter(r => isPersonRow(r, resolveNameCols(r)) && isOnDuty(getDateShift(r, y, m, d))).length
     out.push({ kind: 'num', value: present, unit: '人', label: '今日出勤人数' })
   } else out.push({ kind: 'empty', label: '今日出勤人数', hint: '未导入班表' })
 
@@ -63,14 +62,15 @@ export interface DayAttendance {
 export function computeDayAttendance(data: ShiftRow[], viewer: string, y: number, m: number, d: number): DayAttendance {
   const res: DayAttendance = { day: [], night: [], dutyMiss: [] }
   if (!data.length) return res
-  const nc = resolveNameCols(data[0])
   const v = viewer.toLowerCase()
-  const nameOf = (r: ShiftRow) => (nc.cn ? String(r[nc.cn] ?? '').trim() : '') || (nc.eng ? String(r[nc.eng] ?? '').trim() : '')
+  const val = (r: ShiftRow, k: string | null) => (k !== null ? String(r[k] ?? '').trim() : '')
+  const nameOf = (r: ShiftRow) => { const nc = resolveNameCols(r); return val(r, nc.cn) || val(r, nc.eng) }
   for (const r of data) {
+    const nc = resolveNameCols(r)                // 逐行识别：存储里新旧格式的行会混在一起
     if (!isPersonRow(r, nc)) continue
     const s = getDateShift(r, y, m, d)
     if (!isOnDuty(s)) continue
-    const name = nameOf(r), en = nc.eng ? String(r[nc.eng] ?? '').trim() : ''
+    const name = nameOf(r), en = val(r, nc.eng)
     const p = { name, shift: s, me: !!v && (en.toLowerCase() === v || name.toLowerCase() === v) }
     if (classifyShift(s)!.k === 'night') res.night.push(p); else res.day.push(p)
   }

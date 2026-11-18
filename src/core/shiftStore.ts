@@ -1,7 +1,7 @@
 // 班表存储：localStorage('importedShiftData')，与 v1 共用同一个 key，老用户数据无需迁移即可读取
 import { reactive } from 'vue'
 import { inferDateKeys, isYmdKey } from './date'
-import type { ShiftRow } from './shift'
+import { resolveNameCols, type ShiftRow } from './shift'
 
 export const SHIFT_KEY = 'importedShiftData'
 
@@ -26,18 +26,25 @@ export function normalizeShiftRows(rows: ShiftRow[], refDate?: Date): { rows: Sh
     })
   }
 }
-/** 行的人员标识：英文名优先，其次中文名 / 姓名、企业名 */
+/**
+ * 行的人员标识：英文名优先，其次中文名、企业名。
+ * 姓名列按「这一行」识别（与日历查人同一口径）：旧版本存档 / 两行表头按通用解析的行，列名是 `排班原则…_1`、`''`、`_1`，
+ * 原来只认列名里带「英文 / 中文 / 企业」，这些行取不到标识，合并时被整行丢弃，新旧两种写法的同一个人也合不到一起。
+ */
 export function shiftRowKey(r: ShiftRow): string {
   if (!r || typeof r !== 'object') return ''
-  const keys = Object.keys(r)
-  const pick = (re: RegExp) => {
-    for (const k of keys) if (re.test(k)) { const v = String(r[k] ?? '').trim(); if (v) return v }
-    return ''
-  }
-  return (pick(/英文/) || pick(/中文|姓名/) || pick(/企业/)).toLowerCase()
+  const nc = resolveNameCols(r)
+  const val = (k: string | null) => (k !== null ? String(r[k] ?? '').trim() : '')
+  const org = Object.keys(r).find(k => k.includes('企业'))
+  return (val(nc.eng) || val(nc.cn) || val(org ?? null)).toLowerCase()
 }
 const filled = (v: unknown) => String(v ?? '').trim() !== ''
-/** 合并：同一个人按日期合并（同一天以新导入为准），旧数据的其他日期、其他人保留 */
+/**
+ * 合并：同一个人按日期合并（同一天以新导入为准），旧数据的其他日期、其他人保留。
+ * 新旧行列名不同（旧行 `排班原则…_1`，新行 `英文名`）时，合并后的行改用新行的标准姓名列，避免一行里两套姓名列。
+ * 识别不出人员的行：旧数据里的跳过、新文件里的作为独立行保留（与原逻辑一致）；
+ * 旧格式行现在能按内容识别出人员，不会再落到这一分支被丢弃。
+ */
 export function mergeShiftRows(oldRows: ShiftRow[], newRows: ShiftRow[]): ShiftRow[] {
   const out: ShiftRow[] = [], idx = new Map<string, number>()
   for (const r of oldRows || []) {
@@ -50,6 +57,13 @@ export function mergeShiftRows(oldRows: ShiftRow[], newRows: ShiftRow[]): ShiftR
     const at = k ? idx.get(k) : undefined
     if (at !== undefined) {
       const cur = out[at]
+      const ncNew = resolveNameCols(r), ncOld = resolveNameCols(cur)
+      const std = ncNew.eng !== null && ncNew.eng.includes('英文')
+      if (std && !(ncOld.eng !== null && ncOld.eng.includes('英文'))) {
+        // 旧行是非标准列名：去掉旧姓名列（含企业名列），由新行的标准列补上
+        for (const c of [ncOld.eng, ncOld.cn]) if (c !== null) delete cur[c]
+        for (const c of Object.keys(cur)) if (!isYmdKey(c) && /^(排班原则|班则)/.test(c)) delete cur[c]
+      }
       for (const f of Object.keys(r)) if (filled(r[f])) cur[f] = r[f]
     } else {
       if (k) idx.set(k, out.length)
@@ -123,10 +137,11 @@ export interface ShiftDiff {
 const cellText = (v: unknown) => String(v ?? '').trim()
 /** 人员显示名：中文名（英文名） */
 export function shiftRowLabel(r: ShiftRow): string {
-  const keys = Object.keys(r || {})
-  const val = (re: RegExp) => { for (const k of keys) if (re.test(k)) { const v = cellText(r[k]); if (v) return v } return '' }
-  const cn = val(/中文|姓名/), en = val(/英文/)
-  return cn && en && cn !== en ? `${cn}（${en}）` : (cn || en || val(/企业/))
+  const nc = resolveNameCols(r || {})
+  const val = (k: string | null) => (k !== null ? cellText(r[k]) : '')
+  const cn = val(nc.cn), en = val(nc.eng)
+  const org = Object.keys(r || {}).find(k => k.includes('企业'))
+  return cn && en && cn !== en ? `${cn}（${en}）` : (cn || en || val(org ?? null))
 }
 export function diffShiftRows(oldRows: ShiftRow[], newRows: ShiftRow[]): ShiftDiff {
   const old = new Map<string, ShiftRow>()

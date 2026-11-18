@@ -1,5 +1,5 @@
 // 班次口径（全站唯一来源）：统计卡、出勤明细、日历标注、本月概览、候选名单都调用这里
-import { isYmdKey, ymdKey } from './date'
+import { isYmdKey, parseDateKey, ymdKey } from './date'
 
 export type ShiftRow = Record<string, unknown>
 export type ShiftKind = 'day' | 'night' | 'rest' | 'leave'
@@ -47,17 +47,27 @@ export function isShiftLikeName(s: unknown): boolean {
 export const isEnglishName = (s: unknown): boolean => /^[A-Za-z][A-Za-z0-9._\- ]*$/.test(String(s ?? '').trim())
 
 export interface NameCols { cn: string | null; eng: string | null }
-function pickCol(sample: ShiftRow, hint: string): string | null {
-  return Object.keys(sample).find(k => k.includes(hint)) ?? null
-}
-/** 姓名列：兼容 xlsx 合并表头退化为 __EMPTY / _1 等列名 */
+/**
+ * 姓名列（按「这一行」判断，不要拿第一行代表整张表：存储里新旧格式的行会混在一起）。
+ * ① 有「英文名 / 中文名 / 姓名」列名就用列名；
+ * ② 没有列名时（两行表头按通用解析、旧版本存档，列名是 `排班原则…_1`、`''`、`_1`、`__EMPTY_1` 之类）按单元格内容认：
+ *    日期列之前第一个「英文名样式」的值是英文名，最后一个非英文的非空值是中文名。
+ * 列名可能是空字符串 ''（表头单元格为空串时 SheetJS 会这样命名），所以「没找到」一律用 null 表示，不能用真假判断。
+ */
 export function resolveNameCols(sample: ShiftRow | undefined): NameCols {
   if (!sample || typeof sample !== 'object') return { cn: null, eng: null }
-  const cn = pickCol(sample, '中文') || pickCol(sample, '__EMPTY_1') || pickCol(sample, '_2')
-  const eng = pickCol(sample, '英文') || pickCol(sample, '__EMPTY_2') || pickCol(sample, '__EMPTY') || pickCol(sample, '_1')
+  const keys = Object.keys(sample)
+  let eng: string | null = keys.find(k => k.includes('英文')) ?? null
+  let cn: string | null = keys.find(k => k.includes('中文')) ?? keys.find(k => k.includes('姓名')) ?? null
+  if (eng !== null && cn !== null) return { cn, eng }
+  const firstDate = keys.findIndex(k => !!parseDateKey(k))
+  const head = firstDate < 0 ? keys : keys.slice(0, firstDate)
+  const val = (k: string) => String(sample[k] ?? '').trim()
+  if (eng === null) eng = head.find(k => isEnglishName(val(k))) ?? null
+  if (cn === null) for (const k of head) if (k !== eng && val(k) && !isEnglishName(val(k))) cn = k
   return { cn, eng }
 }
-const str = (row: ShiftRow, col: string | null): string => (col ? String(row[col] ?? '').trim() : '')
+const str = (row: ShiftRow, col: string | null): string => (col !== null ? String(row[col] ?? '').trim() : '')
 
 /** 真实人员行（排除表尾值班行、说明行、班次说明行） */
 export function isPersonRow(row: ShiftRow | null | undefined, nc: NameCols): boolean {
@@ -65,7 +75,7 @@ export function isPersonRow(row: ShiftRow | null | undefined, nc: NameCols): boo
   const en = str(row, nc.eng), cn = str(row, nc.cn)
   const name = cn || en
   if (!name || isSummaryRow(name)) return false
-  if (nc.eng && !isEnglishName(en)) return false
+  if (nc.eng !== null && !isEnglishName(en)) return false
   if (cn && isShiftLikeName(cn)) return false
   return true
 }
@@ -84,9 +94,9 @@ export interface Person { cn: string; en: string; row: ShiftRow }
 export function listPeople(data: ShiftRow[]): Person[] {
   const out: Person[] = [], seen = new Set<string>()
   if (!data.length) return out
-  const nc = resolveNameCols(data[0])
   for (const r of data) {
     if (!r || typeof r !== 'object') continue
+    const nc = resolveNameCols(r)                // 逐行识别：第一行可能是旧格式 / 表头残留
     const cn = str(r, nc.cn), en = str(r, nc.eng)
     if (!isEnglishName(en)) continue
     if (cn && isShiftLikeName(cn)) continue
@@ -117,21 +127,18 @@ export function matchPerson(people: Person[], q: string): { person: Person | nul
   }
   return { person: null, candidates: [] }
 }
+const filledDays = (r: ShiftRow): number => Object.keys(r).filter(k => isYmdKey(k) && String(r[k] ?? '').trim()).length
 export function findUserRow(data: ShiftRow[], user: string): ShiftRow | null {
   if (!user || !data.length) return null
-  const nc = resolveNameCols(data[0]), u = user.toLowerCase()
-  if (nc.eng) {
-    for (const r of data) {
-      const en = str(r, nc.eng)
-      if (en && !isSummaryRow(en) && en.toLowerCase() === u) return r
-    }
-  }
-  if (nc.cn) {
-    for (const r of data) {
-      const c = str(r, nc.cn)
-      if (c && !isSummaryRow(c) && c.toLowerCase() === u) return r
-    }
-  }
-  return null
+  const u = user.toLowerCase()
+  const rows = data.filter(r => r && typeof r === 'object')
+  const ncs = rows.map(r => resolveNameCols(r))   // 逐行识别姓名列
+  // 先按英文名、再按中文名找；同名多行时取有班次最多的那一行（旧格式残留行通常只有很少几天）
+  const best = (hits: ShiftRow[]) => hits.length < 2 ? hits[0] ?? null
+    : hits.reduce((a, b) => (filledDays(b) > filledDays(a) ? b : a))
+  const byEn = rows.filter((r, i) => { const en = str(r, ncs[i].eng); return !!en && !isSummaryRow(en) && en.toLowerCase() === u })
+  if (byEn.length) return best(byEn)
+  const byCn = rows.filter((r, i) => { const c = str(r, ncs[i].cn); return !!c && !isSummaryRow(c) && c.toLowerCase() === u })
+  return best(byCn)
 }
 export const personLabel = (p: { cn: string; en: string }): string => (p.cn && p.en ? `${p.cn}（${p.en}）` : p.cn || p.en)
