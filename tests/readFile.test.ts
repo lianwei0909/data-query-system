@@ -1,6 +1,6 @@
 // 导入班表的文件解析：日期表头必须原样识别成 YYYY-MM-DD（曾被 SheetJS 转成 11/19/26 导致「未检测到日期列」）
 import { describe, expect, it } from 'vitest'
-import { readTableFileAsSheet } from '../src/core/readFile'
+import { readTableFileAsSheet, normalizeScheduleExport } from '../src/core/readFile'
 import { inferDateKeys } from '../src/core/date'
 import { loadXlsx } from '../src/core/xlsx'
 
@@ -42,5 +42,29 @@ describe('readTableFileAsSheet', () => {
     const f = await xlsxFile([{ t: 's', v: '英文名' }, { t: 'n', v: 46345 - 1462, z: 'm/d/yy' }, { t: 'n', v: 3 }], true)
     const rows = await readTableFileAsSheet(f)
     expect(Object.keys(rows[0]).sort()).toEqual(['2026-11-19', '3', '英文名'])   // 数字键在对象里会排到最前，不比顺序
+  })
+})
+
+describe('normalizeScheduleExport（智能排班导出表：两行表头）', () => {
+  const TITLE = '班则：最低保障每天白班3人夜班2人'
+  const head = { [TITLE]: '企业名', __EMPTY: '英文名', __EMPTY_1: '中文名', '11月21日': '星期六', '11月22日': '星期日' }
+  const json = [
+    head,
+    { [TITLE]: 'corp1', __EMPTY: 'alice', __EMPTY_1: '张一', '11月21日': '白班', '11月22日': '夜班' },
+    { [TITLE]: 'corp2', __EMPTY: 'bob', __EMPTY_1: '李二', '11月21日': '夜班', '11月22日': '白班' },
+    { [TITLE]: '', __EMPTY: '', __EMPTY_1: '备注', '11月21日': '石冻大年假', '11月22日': '' },
+    { [TITLE]: '', __EMPTY: '', __EMPTY_1: '早班1', '11月21日': 2, '11月22日': 1 }
+  ]
+  const ref = new Date(2026, 10, 18)
+
+  it('还原人员行与 YYYY-MM-DD 日期列，过滤表尾备注 / 统计行', () => {
+    const out = normalizeScheduleExport(json, ref)
+    expect(out).toHaveLength(2)
+    expect(out![0]).toMatchObject({ 企业名: 'corp1', 英文名: 'alice', 中文名: '张一', '2026-11-21': '白班', '2026-11-22': '夜班' })
+    expect(out![1]).toMatchObject({ 英文名: 'bob', '2026-11-21': '夜班' })
+  })
+
+  it('普通单行表头不会被误判为排班导出表', () => {
+    expect(normalizeScheduleExport([{ 企业名: 'corp1', 英文名: 'alice', 中文名: '张一', '2026-11-21': '白班' }], ref)).toBeNull()
   })
 })

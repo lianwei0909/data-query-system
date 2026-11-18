@@ -78,6 +78,28 @@ test('导入结果自查：姓名列识别不出时明确提示，不会静默�
   expect(errors).toEqual([])
 })
 
+test('智能排班导出的两行表头：按人合并，后续班次显示到日历', async ({ page }) => {
+  const errors = await open(page, './#/import', seed())
+  const csv = '\ufeff' + [
+    '班则：最低保障每天白班3人夜班2人,,,11月21日,11月22日,11月23日',
+    '企业名,英文名,中文名,星期六,星期日,星期一',
+    'corp1,alice,张一,白班,夜班,休',
+    'corp2,bob,李二,夜班,白班,白班',
+    '备注,,,石冻大年假,,',
+    ',,,早班1,2,3'
+  ].join('\n')
+  await page.locator('input[type=file]').setInputFiles({ name: '排班表.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  await expect(page.locator('#dc-toast')).toContainText('已识别为智能排班导出表')
+  await expect(page.locator('.diff-chip').first()).toContainText('0 名新人员')
+  await page.getByRole('button', { name: /确认导入/ }).click()
+  await expect(page.locator('.import-summary')).toContainText('0 行无法按人合并')
+  await expect(page.locator('.import-summary')).toContainText('实际有班次的日期：2026-09-21 ~ 2026-11-23')
+  await page.goto('./')
+  await expect(page.locator('#calendar .cal-cell[aria-label^="11月21日"] .cal-shift')).toHaveText('白')
+  expect(await page.locator('#calendar .cal-shift:not(.s-none)').count()).toBeGreaterThanOrEqual(23)
+  expect(errors).toEqual([])
+})
+
 test('跨标签页：另一个标签导入班表后，停留在首页的标签自动刷新', async ({ context, page }) => {
   const errors = await open(page, './')
   await expect(page.locator('.attendance-count-num')).toHaveText('--')

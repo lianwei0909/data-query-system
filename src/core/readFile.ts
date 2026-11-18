@@ -1,8 +1,8 @@
 // 读 CSV / Excel → 行对象数组（单元格统一转字符串，Date 转 YYYY/M/D HH:mm:ss）
 import { decodeText, formatTimeStamp, parseCSV } from './text'
 import { loadXlsx } from './xlsx'
-import { ymdKey } from './date'
-import type { ShiftRow } from './shift'
+import { inferDateKeys, parseDateKey, ymdKey } from './date'
+import { isEnglishName, type ShiftRow } from './shift'
 
 export const ACCEPT = '.csv,.txt,.xlsx,.xls'
 export function fileExt(name: string): string { return (name.split('.').pop() || '').toLowerCase() }
@@ -44,6 +44,37 @@ export async function readTableFileAsSheet(file: File): Promise<Record<string, u
   headerDatesToText(XLSX, ws, !!wb.Workbook?.WBProps?.date1904)   // 先换算，合并表头填充出去的才是文本
   fillMerges(XLSX, ws)
   return XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '', raw: false })
+}
+
+/**
+ * 智能排班导出的表是「两行表头」：
+ *   第 1 行：班则说明 + 空 + 空 + 11月21日 …（sheet_to_json 会把这一行当表头）
+ *   第 2 行：企业名 / 英文名 / 中文名 + 星期 …
+ * 按通用解析会得到 `班则…` / `__EMPTY` / 日期列名，人员列识别不出来，新班次被存成独立行，
+ * 首页日历仍显示原来那个人。这里还原成标准班表行：企业名 / 英文名 / 中文名 + YYYY-MM-DD。
+ * 不是这种格式时返回 null，调用方继续走通用解析。
+ */
+export function normalizeScheduleExport(json: Record<string, unknown>[], refDate: Date = new Date()): ShiftRow[] | null {
+  if (!Array.isArray(json) || json.length < 2) return null
+  const head = json[0]
+  const keys = Object.keys(head || {})
+  const find = (label: string) => keys.find(k => String(head[k] ?? '').trim() === label)
+  const kEn = find('英文名'), kCn = find('中文名'), kOrg = find('企业名')
+  if (!kEn || !kCn) return null
+  const dateKeys = keys.filter(k => !!parseDateKey(k))
+  if (!dateKeys.length) return null
+  const dateMap = inferDateKeys(dateKeys, refDate)
+  const out: ShiftRow[] = []
+  for (let i = 1; i < json.length; i++) {
+    const r = json[i] || {}
+    const en = String(r[kEn] ?? '').trim()
+    if (!isEnglishName(en)) continue        // 跳过表头残留、备注、统计、图例、值班行
+    const row: ShiftRow = { 英文名: en, 中文名: String(r[kCn] ?? '').trim() }
+    if (kOrg) row['企业名'] = String(r[kOrg] ?? '').trim()
+    for (const [k, ymd] of Object.entries(dateMap)) row[ymd] = r[k]
+    out.push(row)
+  }
+  return out.length ? out : null
 }
 
 /**

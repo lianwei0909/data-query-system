@@ -3,7 +3,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import UploadZone from '../components/UploadZone.vue'
-import { readTableFileAsSheet } from '../core/readFile'
+import { readTableFileAsSheet, normalizeScheduleExport } from '../core/readFile'
 import { diffShiftRows, importShiftRows, loadShiftRows, replaceShiftRows, shiftFilledRange, type ShiftDiff } from '../core/shiftStore'
 import { listPeople, personLabel, type ShiftRow } from '../core/shift'
 import { inferDateKeys, isYmdKey } from '../core/date'
@@ -78,17 +78,20 @@ async function onFile(f: File) {
   try {
     const json = await readTableFileAsSheet(f)
     if (!json.length) { toast('文件内容为空', 'error'); return }
-    const normalized = normalizeSheet(json)
+    // 智能排班导出的 Excel 是两行表头，先还原成标准班表；普通单行表头继续走通用解析
+    const exported = normalizeScheduleExport(json)
+    const normalized = exported ?? normalizeSheet(json)
     if (!normalized.length) { toast('未检测到日期列（如 11月21日 或 2026-11-21），请确认上传的是班表文件', 'error'); return }
     const nc = nameCols(json)
-    // 过滤表尾备注行
+    // 过滤表尾备注行（排班导出表已在 normalizeScheduleExport 里清理过）
     const first = (r: Row) => String((nc.en && r[nc.en]) || (nc.cn && r[nc.cn]) || '').trim()
-    rows.value = normalized.filter(r => !first(r).includes('备注'))
+    rows.value = exported ?? normalized.filter(r => !first(r).includes('备注'))
     columns.value = Object.keys(rows.value[0] || {})
     diff.value = diffShiftRows(loadShiftRows(), rows.value)
     backup.value = null
+    summary.value = null
     const rg = shiftFilledRange(rows.value)
-    toast(`文件解析完成：${rows.value.length} 行，${dateCols.value.length} 个日期列` + (rg ? `（其中 ${rg.from} ~ ${rg.to} 填了班次）` : '（没有填班次）') + '；请点击下方「✅ 确认导入」写入班表', 'info')
+    toast(`文件解析完成：${rows.value.length} 行，${dateCols.value.length} 个日期列` + (exported ? '（已识别为智能排班导出表）' : '') + (rg ? `，其中 ${rg.from} ~ ${rg.to} 填了班次` : '，没有填班次') + '；请点击下方「✅ 确认导入」写入班表', 'info')
   } catch (e) {
     toast('解析失败：' + ((e as Error)?.message || '未知错误'), 'error')
   } finally { hideLoader() }
