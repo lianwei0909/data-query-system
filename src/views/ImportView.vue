@@ -75,13 +75,14 @@ async function onFile(f: File) {
     const exported = normalizeScheduleExport(json)
     const normalized = exported ?? normalizeSheet(json)
     if (!normalized.length) { toast('未检测到日期列（如 11月21日 或 2026-11-21），请确认上传的是班表文件', 'error'); return }
-    // 通用解析：姓名列逐行识别（列名可能是 '' / _1 / __EMPTY_1），去掉备注、表头残留等没有人员标识的行
+    // 通用解析：姓名列逐行识别（列名可能是 '' / _1 / __EMPTY_1），只去掉备注行和表头残留行。
+    // 识别不出人员的行保留：进入差异核对并提示「无法按人合并」，由用户决定是否导入（不静默丢弃，也不静默写入）
     rows.value = exported ?? normalized.filter(r => {
       const nc = resolveNameCols(r)
       const name = [nc.eng, nc.cn].map(k => (k !== null ? String(r[k] ?? '').trim() : '')).find(Boolean) || ''
-      return !!name && !name.includes('备注') && !['企业名', '英文名', '中文名', '姓名'].includes(name)
+      return !name.includes('备注') && !['企业名', '英文名', '中文名', '姓名'].includes(name)
     })
-    if (!rows.value.length) { toast('文件里没有识别到人员行（需要英文名 / 中文名），请确认上传的是班表文件', 'error'); return }
+    if (!rows.value.length) { toast('文件里只有备注 / 表头行，没有可导入的班次行，请确认上传的是班表文件', 'error'); return }
     columns.value = Object.keys(rows.value[0] || {})
     diff.value = diffShiftRows(loadShiftRows(), rows.value)
     backup.value = null

@@ -81,6 +81,21 @@ describe('姓名列逐行识别（不再只看第一行）', () => {
     expect(k).toEqual({ 企业名: 'kafewu(吴超)', 英文名: 'kafewu', 中文名: '吴超', '2026-11-21': '休', '2026-11-22': '早班2', '2026-11-23': '早班2' })
     expect(findUserRow(merged, 'cuijunfang')).toBe(merged[1])
   })
+  it('正常列名（name / dept / 部门）不按内容猜：识别不出就是 null，不会把部门当姓名', () => {
+    expect(resolveNameCols({ name: '张三', '2026-11-21': '白班' })).toEqual({ eng: null, cn: null })
+    expect(resolveNameCols({ name: '张三', dept: '运维组', '2026-11-21': '白班' })).toEqual({ eng: null, cn: null })
+    expect(resolveNameCols({ name: 'alice', 部门: '运维组', '2026-11-21': '白班' })).toEqual({ eng: null, cn: null })
+  })
+  it('识别不出人员的行各自独立保留，不会按部门列被合并成一行（fix3 回归：张三被李四覆盖）', () => {
+    const a = { name: '张三', dept: '运维组', '2026-11-21': '白班' }
+    const b = { name: '李四', dept: '运维组', '2026-11-21': '夜班' }
+    expect(shiftRowKey(a)).toBe('')
+    expect(mergeShiftRows([], [a, b])).toHaveLength(2)
+  })
+  it('合并标题格展开的通用列名（xxx / xxx_1 / xxx_2）仍按内容识别', () => {
+    const T = '2026年12月班表'
+    expect(resolveNameCols({ [T]: 'kafewu(吴超)', [T + '_1']: 'kafewu', [T + '_2']: '吴超', '2026-12-01': '早班2' })).toEqual({ eng: T + '_1', cn: T + '_2' })
+  })
 })
 
 describe('导入 → 日历 → 排班 全流程（旧格式存档 + 导入 1111.xlsx）', () => {

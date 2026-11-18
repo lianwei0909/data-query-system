@@ -48,10 +48,24 @@ export const isEnglishName = (s: unknown): boolean => /^[A-Za-z][A-Za-z0-9._\- ]
 
 export interface NameCols { cn: string | null; eng: string | null }
 /**
+ * 退化列名：两行表头 / 合并单元格按通用解析时 SheetJS 自动生成的列名，列名本身不表达含义：
+ * `''`、`__EMPTY`、`__EMPTY_1`、`_1`，以及合并标题格展开出的 `排班原则…`、`排班原则…_1`、`xxx` + `xxx_2` 这一组。
+ * `name`、`dept`、`部门` 这类正常列名不算——它们有自己的含义，不能拿内容去猜是不是姓名列。
+ */
+function isDegenerateKey(k: string, keys: string[]): boolean {
+  if (k === '' || /^__EMPTY(_\d+)?$/.test(k) || /^_\d+$/.test(k)) return true
+  if (/^(排班原则|班则)/.test(k)) return true
+  const m = /^(.+)_(\d+)$/.exec(k)
+  if (m && keys.includes(m[1])) return true                                   // 合并标题格展开的 xxx_1 / xxx_2
+  return keys.some(o => o.length > k.length + 1 && o.startsWith(k + '_') && /^\d+$/.test(o.slice(k.length + 1)))  // 合并标题格本身 xxx
+}
+/**
  * 姓名列（按「这一行」判断，不要拿第一行代表整张表：存储里新旧格式的行会混在一起）。
  * ① 有「英文名 / 中文名 / 姓名」列名就用列名；
- * ② 没有列名时（两行表头按通用解析、旧版本存档，列名是 `排班原则…_1`、`''`、`_1`、`__EMPTY_1` 之类）按单元格内容认：
+ * ② 没有列名时，只在「退化列名」里按单元格内容认（两行表头按通用解析、旧版本存档）：
  *    日期列之前第一个「英文名样式」的值是英文名，最后一个非英文的非空值是中文名。
+ *    正常列名（如 name、dept）不猜：猜错会把部门之类的列当成姓名，不同的人被合并成一行、静默丢数据；
+ *    识别不出就返回 null，由导入页提示「无法按人合并」。
  * 列名可能是空字符串 ''（表头单元格为空串时 SheetJS 会这样命名），所以「没找到」一律用 null 表示，不能用真假判断。
  */
 export function resolveNameCols(sample: ShiftRow | undefined): NameCols {
@@ -61,7 +75,7 @@ export function resolveNameCols(sample: ShiftRow | undefined): NameCols {
   let cn: string | null = keys.find(k => k.includes('中文')) ?? keys.find(k => k.includes('姓名')) ?? null
   if (eng !== null && cn !== null) return { cn, eng }
   const firstDate = keys.findIndex(k => !!parseDateKey(k))
-  const head = firstDate < 0 ? keys : keys.slice(0, firstDate)
+  const head = (firstDate < 0 ? keys : keys.slice(0, firstDate)).filter(k => isDegenerateKey(k, keys))
   const val = (k: string) => String(sample[k] ?? '').trim()
   if (eng === null) eng = head.find(k => isEnglishName(val(k))) ?? null
   if (cn === null) for (const k of head) if (k !== eng && val(k) && !isEnglishName(val(k))) cn = k
