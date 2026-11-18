@@ -37,10 +37,9 @@ const val = (e: Event) => (e.target as HTMLInputElement).value
             <input type="text" :value="p.need || ''" :aria-label="p.cn + ' 的排班需求'"
               placeholder="如：11月25日-27日年假，周末白班，其余夜班，尽量少上夜班"
               @input="emit('need', i, val($event))" />
-            <div class="chip-row">
+            <div v-if="chips[i].length" class="chip-row">
               <span v-for="(c, k) in shown(i)" :key="k" class="need-chip" :class="'chip-' + c.kind">{{ c.text }}</span>
               <button v-if="chips[i].length > 2" type="button" class="chip-more" @click="toggle(i)">{{ expanded[i] ? '收起' : '+' + (chips[i].length - 2) }}</button>
-              <span v-if="!p.need" class="chip-hint">＋ 写需求</span>
             </div>
           </td>
           <td class="sch-need-preview person-preview" :title="previews[i]">{{ previews[i] }}</td>

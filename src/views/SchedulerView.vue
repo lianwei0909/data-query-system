@@ -171,12 +171,6 @@ onBeforeUnmount(() => {
                 v-model:custom-text="customText" :people="people" :dates="dates"
                 @active="(i, v) => (people[i].active = v)" @need="(i, v) => (people[i].need = v)"
               />
-              <details class="examples">
-                <summary>示例写法（点选可插入全员规则）</summary>
-                <div class="example-list">
-                  <button v-for="t in EXAMPLES" :key="t" type="button" @click="useExample(t)">{{ t }}</button>
-                </div>
-              </details>
             </div>
           </div>
 

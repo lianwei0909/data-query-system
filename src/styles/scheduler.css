@@ -101,12 +101,14 @@
 .page-scheduler .people-table { display: block; width: 100%; border-collapse: collapse; }
 .page-scheduler .people-table tbody { display: block; }
 .page-scheduler .person-card {
-  display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px;
+  /* 姓名列只留刚够的宽度，输入框紧跟名字，中间只有一点距离 */
+  display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px;
   margin-bottom: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2);
 }
 .page-scheduler .person-id { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .page-scheduler .person-id input[type=checkbox] { flex: 0 0 auto; width: 14px; height: 14px; accent-color: var(--accent); }
-.page-scheduler .person-name { min-width: 0; }
+/* 子页面默认 text-align:center，这里显式左对齐；姓名块撑满列宽，输入框只隔一个 8px 间隙 */
+.page-scheduler .person-name { flex: 1 1 auto; min-width: 0; text-align: left; }
 /* 去掉头像圆圈后，中文名 / 英文名完整显示，不再省略号截断 */
 .page-scheduler .person-name b { display: block; font-size: 12.5px; color: var(--text-primary); white-space: normal; overflow: visible; }
 .page-scheduler .person-name small { display: block; font-size: 11px; color: var(--text-muted); white-space: normal; overflow: visible; overflow-wrap: anywhere; }
@@ -128,20 +130,12 @@
 .page-scheduler .chip-count { background: var(--accent-glow); color: var(--info-text); }
 .page-scheduler .chip-bad { background: var(--gold-bg); color: var(--warn-text); border: 1px solid var(--warn-text); }
 .page-scheduler .chip-more { border: none; background: transparent; color: var(--accent-text); font-size: 10.5px; cursor: pointer; font-family: inherit; }
-.page-scheduler .chip-hint { font-size: 10.5px; color: var(--text-muted); }
 .page-scheduler .sch-need-preview.person-preview { display: none; }
 .page-scheduler .people-empty { display: block; padding: 12px; text-align: center; font-size: 12px; color: var(--text-muted); }
 /* 全员规则恢复为原来的虚线金色卡片 */
 .page-scheduler .sch-custom-row.person-card { border-style: dashed; border-color: var(--gold); background: var(--gold-bg); }
 /* 金色底上 --text-muted 只有 3.76 / 4.43，沿用已通过 WCAG AA 的告警文字色 */
 .page-scheduler .sch-custom-row .person-name small { color: var(--warn-text); }
-.page-scheduler .examples { margin-top: 8px; }
-.page-scheduler .examples summary { font-size: 12px; color: var(--accent-text); cursor: pointer; }
-.page-scheduler .example-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.page-scheduler .example-list button {
-  padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg2);
-  color: var(--text-secondary); font-size: 11px; font-family: inherit; cursor: pointer;
-}
 
 /* ── 主操作条 / 更多菜单 ── */
 .page-scheduler .sch-action-bar {
