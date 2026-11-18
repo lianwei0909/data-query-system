@@ -228,20 +228,23 @@ function undoImport() {
 
 <style scoped>
 .row-count { margin-left: 10px; font-size: 12.5px; font-weight: 400; color: var(--text-muted); }
-.diff-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+/* 导入页所有说明 /  chips / 操作区统一居中 */
+.hint-text { text-align: center; }
+.diff-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 4px 0 10px; }
 .diff-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--card-bg2); font-size: 13px; color: var(--text-secondary); }
 .diff-chip b { color: var(--text-primary); margin-right: 2px; }
 .diff-chip.warn { border-color: var(--warn-text); background: var(--gold-bg); color: var(--warn-text); }
 .diff-chip.warn b { color: var(--warn-text); }
-.diff-warn { color: var(--warn-text); }
+.diff-warn { color: var(--warn-text); text-align: center; }
 .diff-table { max-height: 320px; margin-top: 6px; }
 .diff-from { color: var(--text-muted); text-decoration: line-through; }
 .diff-to { color: var(--text-primary); font-weight: 600; }
-.undo-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 13.5px; color: var(--text-secondary); }
-.undo-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.import-summary { text-align: left; }
-.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 4px 0 12px; }
-.summary-grid > div { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2); font-size: 12.5px; color: var(--text-secondary); }
+/* 全局 .sub-page-body .preview-section.active 会强制 display:block，这里提高优先级保持一行居中 */
+.preview-section.active.undo-bar { display: flex; align-items: center; justify-content: center; text-align: center; gap: 12px; flex-wrap: wrap; font-size: 13.5px; color: var(--text-secondary); }
+.undo-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.import-summary { text-align: center; }
+.summary-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 4px 0 12px; }
+.summary-grid > div { min-width: 130px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2); font-size: 12.5px; color: var(--text-secondary); text-align: center; }
 .summary-grid b { margin-right: 4px; font-size: 18px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .summary-grid .warn { border-color: var(--warn-text); background: var(--gold-bg); color: var(--warn-text); }
 .summary-grid .warn b { color: var(--warn-text); }
