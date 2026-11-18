@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 智能排班：v2.1 页面全部改为 Vue 组件（规则 / 人员需求 / 结果表 / 校验报告），状态与持久化见 schedulerStore.ts，
-// 算法在 engine.js（主线程只做结果整理与校验，求解交给 Worker：不卡界面、可取消、有进度）
+// 智能排班：双栏工作台（左配置 / 右结果）。求解、校验、导出逻辑保持原样，进度交给 Worker。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import SCH from '../solver/engine.js'
 import type { CarryInfo, Person, RuleNumKey, Rules, ScheduleResult, SchedulerInput, SolveResult, Validation } from '../solver/types'
 import { solveInWorker, cancelSolve, progress, progressText } from '../solver/useSolver'
@@ -14,9 +14,11 @@ import RulesPanel from '../components/scheduler/RulesPanel.vue'
 import PeopleTable from '../components/scheduler/PeopleTable.vue'
 import ScheduleTable from '../components/scheduler/ScheduleTable.vue'
 import ScheduleSummary from '../components/scheduler/ScheduleSummary.vue'
+import VerdictBar from '../components/scheduler/VerdictBar.vue'
+import SolveProgress from '../components/scheduler/SolveProgress.vue'
 import '../styles/scheduler.css'
 
-// 与 v1 一致：每次用到班表时重新读取存储（在别的标签页导入后切回本页也能拿到最新人员与上期班次）
+const router = useRouter()
 const rows = () => loadShiftRows() as S.Row[]
 const now = new Date()
 const years = S.yearOptions(now)
@@ -29,10 +31,11 @@ const rules = ref<Rules>(S.loadRules(ls))
 const customText = ref(S.loadCustom(ls))
 watch(people, v => S.savePeople(v, ls), { deep: true })
 watch(customText, v => S.saveCustom(v, ls))
+const activeCount = computed(() => people.value.filter(p => p.active).length)
 
 interface Last { input: SchedulerInput; result: ScheduleResult; validation: Validation; carry: CarryInfo }
-const last = shallowRef<Last | null>(null)       // 结果数组较大，不做深层响应式
-const message = ref('')                           // 结果区提示：排班中 / 已取消 / 出错
+const last = shallowRef<Last | null>(null)
+const message = ref('')
 const running = ref(false)
 const elapsed = ref(0)
 const resultBox = ref<HTMLElement | null>(null)
@@ -42,14 +45,13 @@ const pct = computed(() => {
   switch (progress.value) {
     case 'build': return 8
     case 'solve': return 15
-    case 'stage1': return Math.min(70, 15 + elapsed.value * 2.2)      // 第 1 阶段最长 25 秒
-    case 'stage2': return Math.min(96, 72 + (elapsed.value % 10) * 2.4) // 第 2 阶段最长 8 秒
+    case 'stage1': return Math.min(70, 15 + elapsed.value * 2.2)
+    case 'stage2': return Math.min(96, 72 + (elapsed.value % 10) * 2.4)
     case 'fallback': return 50
     default: return 5
   }
 })
 
-// ── 规则 / 人员 ──
 function setRule(key: RuleNumKey, v: number) {
   if (!isNaN(v) && v > 0) { rules.value[key] = v; S.saveRules(rules.value, ls) }
 }
@@ -69,13 +71,11 @@ function resetRules() {
   toast('规则已恢复默认')
 }
 function restorePeople() {
-  // 「恢复默认」= 按已导入的班表重新提取人员（源码里不预置名单）
   people.value = S.peopleFromImported(rows())
   toast(people.value.length ? '已按导入的班表重新提取 ' + people.value.length + ' 人' : '还没有导入班表，请先在「数据导入」导入',
     people.value.length ? 'success' : 'error')
 }
 
-// ── 排班 ──
 async function run() {
   const r = rules.value
   const actives = people.value.filter(p => p.active)
@@ -87,10 +87,8 @@ async function run() {
   timer = setInterval(() => { elapsed.value++ }, 1000)
   message.value = '⏳ 正在排班（精确求解，通常 5~30 秒）…'
   await nextTick()
-  try { resultBox.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch { /* 老浏览器 */ }
 
   const ds = dates.value
-  // 去掉响应式代理：Worker 的 postMessage 需要可结构化克隆的纯对象
   const plain = JSON.parse(JSON.stringify(actives)) as Person[]
   const needNotes: string[] = [], invalid: string[] = []
   plain.forEach(p => {
@@ -131,7 +129,6 @@ function show(input: SchedulerInput, res: SolveResult, note: string, invalid: st
 }
 function cancel() { cancelSolve() }
 
-// ── 导出 ──
 async function doExport() {
   const L = last.value
   if (!L) { toast('请先生成排班', 'error'); return }
@@ -143,13 +140,13 @@ async function doExport() {
   const ok = SCH.exportXlsx(L.input, L.result, name)
   toast(ok ? '已导出 ' + name : '导出失败：缺少 XLSX 库', ok ? 'success' : 'error')
 }
+function primary() { people.value.length ? run() : router.push('/import') }
+const EXAMPLES = ['周四周五休，周末白班', '11月25日-27日年假', '尽量少上夜班', '每天白班至少3人']
+const useExample = (t: string) => { customText.value = customText.value ? customText.value + '；' + t : t }
 
-onMounted(() => {
-  // Excel 库后台预载；导出时若还没好会再等一次
-  loadXlsx().then(x => SCH.setXlsx(x)).catch(() => { /* 导出时再提示 */ })
-})
+onMounted(() => { loadXlsx().then(x => SCH.setXlsx(x)).catch(() => { /* 导出时再提示 */ }) })
 onBeforeUnmount(() => {
-  if (running.value) cancelSolve()     // 离开页面时终止求解，释放 wasm 内存
+  if (running.value) cancelSolve()
   if (timer) clearInterval(timer)
 })
 </script>
@@ -157,60 +154,77 @@ onBeforeUnmount(() => {
 <template>
   <div class="sub-page-body page-scheduler">
     <div class="container">
-      <div class="page-intro">
+      <div class="page-intro sch-page-intro">
         <h2>智能排班</h2>
-        <p>填写每个人的请假 / 必休 / 指定班次，自动生成满足最低保障与人数上限的合规班表</p>
+        <p>左侧改规则与需求，右侧直接看合规结论和全月班表</p>
       </div>
 
-      <RulesPanel
-        v-model:year="period.year" v-model:month="period.month" :years="years" :period-text="periodText" :rules="rules"
-        @rule="setRule" @n2d="setN2D" @fixed-rest="setFixedRest" @reset="resetRules"
-      />
+      <div class="sch-workbench">
+        <!-- 左栏：配置 -->
+        <aside class="sch-config">
+          <div class="sch-config-scroll">
+            <RulesPanel
+              v-model:year="period.year" v-model:month="period.month" :years="years" :period-text="periodText" :rules="rules"
+              @rule="setRule" @n2d="setN2D" @fixed-rest="setFixedRest" @reset="resetRules"
+            />
+            <div class="cfg-card people-card">
+              <div class="cfg-head">
+                <span class="cfg-title">人员需求</span>
+                <span class="cfg-hint">参与 {{ activeCount }}/{{ people.length }}</span>
+              </div>
+              <PeopleTable
+                v-model:custom-text="customText" :people="people" :dates="dates"
+                @active="(i, v) => (people[i].active = v)" @need="(i, v) => (people[i].need = v)"
+              />
+              <details class="examples">
+                <summary>示例写法（点选可插入全员规则）</summary>
+                <div class="example-list">
+                  <button v-for="t in EXAMPLES" :key="t" type="button" @click="useExample(t)">{{ t }}</button>
+                </div>
+              </details>
+            </div>
+          </div>
 
-      <!-- 人员需求 -->
-      <div class="preview-section active">
-        <div class="section-title">人员需求</div>
-        <PeopleTable
-          v-model:custom-text="customText" :people="people" :dates="dates"
-          @active="(i, v) => (people[i].active = v)" @need="(i, v) => (people[i].need = v)"
-        />
-        <div class="action-bar">
-          <button type="button" class="btn-import" id="btn-run" :disabled="running" @click="run">{{ running ? '排班中…' : '⚡ 生成排班' }}</button>
-          <button type="button" class="btn btn-secondary" id="btn-again" :disabled="running" title="换一组随机起点重排" @click="run">🔄 换个排法</button>
-          <button type="button" class="btn btn-secondary" id="btn-export" @click="doExport">📥 导出 Excel</button>
-          <button type="button" class="btn btn-secondary" id="btn-restore" @click="restorePeople">恢复默认人员</button>
-          <button v-if="running" type="button" class="btn btn-secondary sch-cancel" @click="cancel">⏹ 取消排班</button>
-        </div>
-        <div class="hint-text">
-          一句话写需求，多条用逗号隔开，右侧「识别结果」可实时核对：<br />
-          请假 <b>11月25日-27日年假</b>　·　休息 <b>8、9号休</b>　·　指定 <b>15号白班</b>　·　按星期 <b>周四周五休，周末白班，其余夜班</b>　·　偏好 <b>尽量少上夜班</b><br />
-          最后一行「自定义需求」对全员生效，叠加在现有规则之上，多条用分号隔开：<br />
-          全员 <b>12月31日不休</b>　·　每日人数 <b>每天白班至少3人</b>　·　点名 <b>张三：12月1日-2日年假</b>　·　天数 <b>夜班最多10天</b>
-        </div>
-      </div>
+          <!-- 固定在左栏底部的主操作 -->
+          <div class="sch-action-bar">
+            <button type="button" id="btn-run" class="btn-primary-main" :disabled="running" @click="primary">
+              {{ running ? '排班中…' : (people.length ? '⚡ 生成排班' : '去导入班表') }}
+            </button>
+            <details class="more-menu">
+              <summary aria-label="更多操作">⋯</summary>
+              <div class="menu-items">
+                <button type="button" id="btn-again" :disabled="running" @click="run">🔄 换个排法</button>
+                <button type="button" @click="doExport">📥 导出 Excel</button>
+                <button type="button" id="btn-restore" @click="restorePeople">按导入班表重新提取人员</button>
+              </div>
+            </details>
+          </div>
+        </aside>
 
-      <!-- 求解进度（Worker 实时回传） -->
-      <div v-if="running" class="sch-progress" role="status" aria-live="polite">
-        <div class="sch-progress-bar"><div class="sch-progress-fill" :style="{ width: pct + '%' }" /></div>
-        <div class="sch-progress-text">{{ progressText || '正在排班…' }}　已用时 {{ elapsed }} 秒</div>
-      </div>
+        <!-- 右栏：结果 -->
+        <section class="sch-right">
+          <div v-if="running" class="sch-stage">
+            <SolveProgress :pct="pct" :stage="progress" :text="progressText" :elapsed="elapsed" @cancel="cancel" />
+          </div>
+          <div v-else-if="message" class="sch-stage sch-empty">{{ message }}</div>
+          <div v-else-if="!last" class="sch-stage sch-empty-state">
+            <span class="empty-icon">▦</span>
+            <h3>还没有排班结果</h3>
+            <p>在左侧填好规则与人员需求，点「⚡ 生成排班」，合规结论和全月班表会出现在这里</p>
+            <div class="empty-examples">
+              <button v-for="t in EXAMPLES" :key="t" type="button" @click="useExample(t)">{{ t }}</button>
+            </div>
+          </div>
 
-      <!-- 结果 -->
-      <div id="result-box" ref="resultBox" class="preview-section" :class="{ active: !!message || !!last }">
-        <div v-if="message" class="sch-empty">{{ message }}</div>
-        <ScheduleTable v-else-if="last" :input="last.input" :result="last.result" />
-      </div>
-      <div id="summary-box" class="preview-section" :class="{ active: !!last && !message }">
-        <ScheduleSummary v-if="last && !message" :input="last.input" :result="last.result" :validation="last.validation" :carry="last.carry" />
+          <div id="summary-box" class="preview-section" :class="{ active: !!last && !message }">
+            <VerdictBar v-if="last && !message" :input="last.input" :result="last.result" :validation="last.validation" :notes="last.validation.notes" />
+            <div id="result-box" ref="resultBox" class="sch-result-box">
+              <ScheduleTable v-if="last && !message" :input="last.input" :result="last.result" @export="doExport" />
+            </div>
+            <ScheduleSummary v-if="last && !message" :input="last.input" :result="last.result" :validation="last.validation" :carry="last.carry" />
+          </div>
+        </section>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.sch-progress { margin: 4px 0 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-bg); }
-.sch-progress-bar { height: 6px; border-radius: 3px; background: var(--card-bg2); overflow: hidden; }
-.sch-progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .6s ease; }
-.sch-progress-text { margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
-.sch-cancel { border-color: var(--red) !important; color: var(--red-text) !important; }
-</style>

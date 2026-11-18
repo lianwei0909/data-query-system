@@ -1,9 +1,41 @@
 // 排班页状态与持久化（从 v1 scheduler-core.js 页面层逐行移植的纯函数，存储可注入，便于单测）
 // localStorage key 与 v1 完全一致：scheduler_people / scheduler_rules / scheduler_custom_need / scheduler_last
 import SCH from './engine.js'
-import { DAY, NIGHT, OFF, type CarryInfo, type Person, type Rules, type ShiftCode } from './types'
+import { DAY, NIGHT, OFF, type CarryInfo, type NeedParse, type Person, type Rules, type ShiftCode } from './types'
 import type { StorageLike } from '../core/storage'
 import { resolveNameCols } from '../core/shift'
+
+/** 需求识别结果 → 彩色标签（纯展示整理，不改 parseNeedText 的识别逻辑） */
+export type NeedChipKind = 'leave' | 'off' | 'day' | 'night' | 'work' | 'prefer' | 'count' | 'bad'
+export interface NeedChip { kind: NeedChipKind; text: string }
+const CHIP_WEEK = ['日', '一', '二', '三', '四', '五', '六', '日']
+function fmtNeedTok(tok: string): string {
+  const [day, type] = String(tok).split(':')
+  const m = day.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  const label = m ? `${+m[2]}/${+m[3]}` : day
+  return type ? `${label} ${type.replace('小夜班3', '夜班')}` : label
+}
+export function needChips(n: NeedParse | null | undefined): NeedChip[] {
+  if (!n) return []
+  const out: NeedChip[] = []
+  n.leave.forEach(t => out.push({ kind: 'leave', text: fmtNeedTok(t) }))
+  n.off.forEach(t => out.push({ kind: 'off', text: fmtNeedTok(t) }))
+  n.fix.forEach(t => out.push({ kind: /夜/.test(t) ? 'night' : 'day', text: fmtNeedTok(t) }))
+  n.work.forEach(t => out.push({ kind: 'work', text: fmtNeedTok(t) }))
+  const week = (arr: number[], kind: NeedChipKind, label: string) => {
+    if (arr && arr.length) out.push({ kind, text: '周' + arr.map(x => CHIP_WEEK[x] || '').join('') + label })
+  }
+  week(n.weekDay, 'day', '白班'); week(n.weekNight, 'night', '夜班')
+  week(n.weekOff, 'off', '休'); week(n.weekWork, 'work', '上班')
+  if (n.prefer) out.push({ kind: 'prefer', text: n.prefer === 'day' ? '偏白班' : '偏夜班' })
+  if (n.target != null) out.push({ kind: 'count', text: `上班 ${n.target} 天` })
+  ;(n.counts || []).forEach(c => out.push({ kind: 'count', text: `${c.kind === 'work' ? '上班' : c.kind === 'day' ? '白班' : c.kind === 'night' ? '夜班' : '合计'}${c.op === 'min' ? '≥' : c.op === 'max' ? '≤' : '='}${c.n}` }))
+  ;(n.balance || []).forEach(b => out.push({ kind: 'prefer', text: `${b === 'night' ? '夜班' : b === 'day' ? '白班' : b === 'weekend' ? '周末班' : '出勤'}均分` }))
+  if (n.dayAll) out.push({ kind: 'day', text: '全白班' })
+  if (n.nightAll) out.push({ kind: 'night', text: '全夜班' })
+  ;(n.invalid || []).forEach(t => out.push({ kind: 'bad', text: `没看懂：${t}` }))
+  return out
+}
 
 export type Row = Record<string, unknown>
 export const LS_PEOPLE = 'scheduler_people'
