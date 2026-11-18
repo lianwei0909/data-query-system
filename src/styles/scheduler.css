@@ -143,15 +143,17 @@
   flex: 0 0 auto; display: flex; gap: 8px; padding: 10px;
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
 }
+/* 两个排班操作等宽等高，只靠颜色区分主次（渐变紫 / 深色次要）。
+   统一 box-sizing / padding / 边框宽度，否则 flex 只均分内容宽，总宽仍会差 padding+border */
 .page-scheduler .btn-primary-main {
-  flex: 1 1 auto; height: 46px; border: none; border-radius: 10px; cursor: pointer;
+  flex: 1 1 0; min-width: 0; box-sizing: border-box; height: 46px; padding: 0 8px;
+  border: 1px solid transparent; border-radius: 10px; cursor: pointer;
   background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font-size: 15px; font-weight: 700; font-family: inherit;
   box-shadow: 0 4px 14px var(--accent-glow);
 }
 .page-scheduler .btn-primary-main:disabled { opacity: .55; cursor: not-allowed; }
-/* 「换个排法」与主按钮同行：次要按钮样式，仍保留原 id */
 .page-scheduler .btn-secondary-action {
-  flex: 0 0 auto; height: 46px; padding: 0 14px; white-space: nowrap;
+  flex: 1 1 0; min-width: 0; box-sizing: border-box; height: 46px; padding: 0 8px; white-space: nowrap;
   border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2);
   color: var(--text-primary); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
 }
