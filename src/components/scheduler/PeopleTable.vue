@@ -49,9 +49,10 @@ const val = (e: Event) => (e.target as HTMLInputElement).value
         <tr class="sch-custom-row person-card">
           <td class="person-id">
             <span class="person-avatar person-avatar-all">全</span>
-            <span class="person-name"><b>全员规则</b><small>叠加在个人需求之上</small></span>
+            <span class="person-name"><b>⚠ 全员规则</b><small>对 {{ people.length }} 人同时生效</small></span>
           </td>
           <td class="person-need">
+            <div class="custom-label">在这里写对所有人生效的规则 ↓</div>
             <input type="text" :value="customText" aria-label="自定义需求（对全员生效）"
               placeholder="如：12月31日不休；每天白班至少3人；张三：12月1日-2日年假"
               @input="emit('update:customText', val($event))" />

@@ -135,9 +135,18 @@
 .page-scheduler .chip-hint { font-size: 10.5px; color: var(--text-muted); }
 .page-scheduler .sch-need-preview.person-preview { display: none; }
 .page-scheduler .people-empty { display: block; padding: 12px; text-align: center; font-size: 12px; color: var(--text-muted); }
-.page-scheduler .sch-custom-row.person-card { border-style: dashed; border-color: var(--gold); background: var(--gold-bg); }
+/* 全员规则：从虚线小卡片改成带金色竖条的强调卡片，输入引导也不再用淡灰小字 */
+.page-scheduler .sch-custom-row.person-card {
+  grid-template-columns: 150px minmax(0, 1fr);
+  border: 2px solid var(--gold); border-left-width: 5px; background: var(--gold-bg);
+  padding: 10px 8px; margin-top: 12px;
+}
 /* 金色底上 --text-muted 只有 3.76 / 4.43，改用已通过 WCAG AA 的告警文字色 */
-.page-scheduler .sch-custom-row .person-name small { color: var(--warn-text); }
+.page-scheduler .sch-custom-row .person-name b { font-size: 13.5px; color: var(--warn-text); }
+.page-scheduler .sch-custom-row .person-name small { font-size: 11px; font-weight: 600; color: var(--warn-text); }
+.page-scheduler .custom-label { margin-bottom: 5px; font-size: 11.5px; font-weight: 700; color: var(--warn-text); }
+.page-scheduler .sch-custom-row .person-need input[type=text] { border-color: var(--gold); }
+.page-scheduler .sch-custom-row .person-need input[type=text]::placeholder { color: var(--text-secondary); }
 .page-scheduler .examples { margin-top: 8px; }
 .page-scheduler .examples summary { font-size: 12px; color: var(--accent-text); cursor: pointer; }
 .page-scheduler .example-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -152,8 +161,9 @@
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
 }
 .page-scheduler .btn-primary-main {
-  flex: 1 1 auto; height: 42px; border: none; border-radius: 10px; cursor: pointer;
-  background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font-size: 14px; font-weight: 700; font-family: inherit;
+  flex: 1 1 auto; height: 46px; border: none; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(135deg, var(--btn-a), var(--btn-b)); color: #fff; font-size: 15px; font-weight: 700; font-family: inherit;
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
 .page-scheduler .btn-primary-main:disabled { opacity: .55; cursor: not-allowed; }
 .page-scheduler .more-menu { position: relative; flex: 0 0 42px; }
@@ -231,7 +241,14 @@
 }
 .page-scheduler .sch-name-text b { font-size: 12px; color: var(--text-primary); }
 .page-scheduler .sch-name-text small { display: block; font-size: 10px; color: var(--text-muted); }
-.page-scheduler .sch-sum-col { background: var(--card-bg); color: var(--text-secondary); min-width: 150px; font-weight: 600; }
+.page-scheduler .sch-sum-col {
+  background: var(--card-bg2); color: var(--text-primary); min-width: 190px; font-weight: 700;
+  border-left: 2px solid var(--accent);
+}
+.page-scheduler .sum-head {
+  display: inline-block; padding: 3px 8px; border: 1px solid var(--accent); border-radius: 6px;
+  background: var(--accent-glow); color: var(--accent-text); font-size: 11.5px; font-weight: 700;
+}
 .page-scheduler .sch-cell { padding: 2px; text-align: center; border-bottom: 1px solid var(--table-line, var(--border-light)); min-width: 36px; }
 .page-scheduler .sch-block {
   display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 30px;
@@ -245,15 +262,31 @@
 .page-scheduler .sch-cell.stat { font-weight: 700; color: var(--text-secondary); background: var(--card-bg2); }
 .page-scheduler .sch-cell.bad { background: var(--red-bg) !important; color: var(--err-text); font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--err-text); }
 .page-scheduler .sch-stat-row td, .page-scheduler .sch-duty-row td { border-top: 1px solid var(--border); }
-.page-scheduler .sch-person-stat { padding: 5px 8px; text-align: left; white-space: normal; }
-.page-scheduler .stat-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--card-bg2); }
+.page-scheduler .sch-person-stat { padding: 7px 9px; text-align: left; white-space: normal; vertical-align: middle; }
+.page-scheduler .stat-bar {
+  display: flex; height: 10px; gap: 1px; border-radius: 5px; overflow: hidden;
+  background: var(--card-bg); border: 1px solid var(--border);
+}
 .page-scheduler .stat-bar i { display: block; height: 100%; }
 .page-scheduler .seg-day { background: var(--day); }
 .page-scheduler .seg-night { background: var(--night); }
 .page-scheduler .seg-rest { background: var(--rest); }
 .page-scheduler .seg-leave { background: var(--leave); }
-.page-scheduler .stat-text { margin-top: 4px; font-size: 10.5px; color: var(--text-secondary); line-height: 1.4; }
-.page-scheduler .stat-warn { margin-top: 2px; font-size: 10.5px; color: var(--err-text); }
+.page-scheduler .stat-nums { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.page-scheduler .stat-num { padding: 2px 6px; border-radius: 5px; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.page-scheduler .stat-num b { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.page-scheduler .n-day { background: var(--day-bg); color: var(--day-text); }
+.page-scheduler .n-night { background: var(--night-bg); color: var(--night-text); }
+.page-scheduler .n-rest { background: var(--rest-bg); color: var(--rest-text); }
+.page-scheduler .n-leave { background: var(--leave-bg); color: var(--leave-text); }
+.page-scheduler .stat-warn {
+  margin-top: 6px; padding: 3px 6px; border: 1px solid var(--err-text); border-radius: 6px;
+  background: var(--red-bg); color: var(--err-text); font-size: 10.5px; font-weight: 700; line-height: 1.4;
+}
+.page-scheduler .stat-ok {
+  margin-top: 6px; padding: 2px 6px; border-radius: 6px;
+  background: var(--green-bg); color: var(--ok-text); font-size: 10.5px; font-weight: 600;
+}
 .page-scheduler .filter-day .sch-cell:not(.day1):not(.stat):not(.duty) .sch-block,
 .page-scheduler .filter-night .sch-cell:not(.night):not(.stat):not(.duty) .sch-block { opacity: .18; }
 
@@ -330,7 +363,8 @@
   .page-scheduler .sch-config { position: static; height: auto; }
 }
 @media (max-width: 640px) {
-  .page-scheduler .person-card { grid-template-columns: minmax(0, 1fr); }
+  .page-scheduler .person-card,
+  .page-scheduler .sch-custom-row.person-card { grid-template-columns: minmax(0, 1fr); }
   .page-scheduler .person-id { justify-content: flex-start; }
   .page-scheduler .stepper-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .page-scheduler .verdict-nums { gap: 10px; }

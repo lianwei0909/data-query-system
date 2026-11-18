@@ -47,7 +47,7 @@ const share = (p: number, k: 'day' | 'night' | 'rest' | 'leave') => Math.round(p
           <th class="sch-name-col" rowspan="2">姓名</th>
           <th v-for="(d, i) in input.dates" :key="'d' + i" :class="[SCH.isWeekend(d) ? 'sch-we' : '', d.getDate() === 1 && i > 0 ? 'month-start' : '']"
             :title="SCH.keyOf(d) + ' ' + SCH.weekdayCn(d)">{{ dateLabel(d, i) }}</th>
-          <th class="sch-sum-col" rowspan="2">本期统计</th>
+          <th class="sch-sum-col" rowspan="2"><span class="sum-head">本期统计</span></th>
         </tr>
         <tr class="sch-head-week">
           <th v-for="(d, i) in input.dates" :key="'w' + i" :class="SCH.isWeekend(d) ? 'sch-we' : ''">{{ weekLabel(d) }}</th>
@@ -69,8 +69,16 @@ const share = (p: number, k: 'day' | 'night' | 'rest' | 'leave') => Math.round(p
               <i class="seg-rest" :style="{ width: share(p, 'rest') + '%' }"></i>
               <i class="seg-leave" :style="{ width: share(p, 'leave') + '%' }"></i>
             </div>
-            <div class="stat-text">白 {{ result.personStats[p].day }} · 夜 {{ result.personStats[p].night }} · 休 {{ result.personStats[p].rest }} · 假 {{ result.personStats[p].leave }}</div>
-            <div v-if="result.personStats[p].maxRun > input.rules.maxRun" class="stat-warn">连班 {{ result.personStats[p].maxRun }} 天超限</div>
+            <div class="stat-nums">
+              <span class="stat-num n-day">白 <b>{{ result.personStats[p].day }}</b></span>
+              <span class="stat-num n-night">夜 <b>{{ result.personStats[p].night }}</b></span>
+              <span class="stat-num n-rest">休 <b>{{ result.personStats[p].rest }}</b></span>
+              <span class="stat-num n-leave">假 <b>{{ result.personStats[p].leave }}</b></span>
+            </div>
+            <div v-if="result.personStats[p].maxRun > input.rules.maxRun" class="stat-warn">
+              ⚠ 连班 {{ result.personStats[p].maxRun }} 天 · 超过上限 {{ input.rules.maxRun }} 天
+            </div>
+            <div v-else class="stat-ok">✓ 连班 {{ result.personStats[p].maxRun }} 天 · 未超限</div>
           </td>
         </tr>
       </tbody>
