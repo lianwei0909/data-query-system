@@ -1,12 +1,15 @@
 /* 智能排班页：双栏工作台（仅桌面端重设计）。所有颜色只引用 tokens.css 的变量。 */
-.page-scheduler .container { max-width: 1720px; }
+/* 宽屏撑满可用宽度：突破 .sub-page-body 的 1600px 居中限制，避免左右大片留白 */
+.page-scheduler.sub-page-body { max-width: none; }
+.page-scheduler .container { max-width: none; }
 .page-scheduler .sch-page-intro { margin-bottom: 14px; }
 .page-scheduler .sch-page-intro h2 { font-size: 22px; }
 
 /* ── 工作台骨架 ── */
-.page-scheduler .sch-workbench { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+.page-scheduler .sch-workbench { display: grid; grid-template-columns: clamp(340px, 24vw, 440px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .page-scheduler .sch-config {
-  position: sticky; top: 12px; height: calc(100vh - 120px); min-width: 0;
+  /* 减去顶栏、页头与留白，保证底部主操作条完整落在视口内 */
+  position: sticky; top: 12px; height: calc(100vh - 164px); min-width: 0;
   display: flex; flex-direction: column; gap: 12px;
 }
 .page-scheduler .sch-config-scroll {
@@ -275,7 +278,11 @@
 .page-scheduler .solve-stages span.done { background: var(--green-bg); color: var(--ok-text); }
 .page-scheduler .solve-stages span.active { background: var(--accent-glow); color: var(--accent-text); font-weight: 700; }
 .page-scheduler .sch-empty { padding: 24px; text-align: center; color: var(--text-secondary); font-size: 13px; }
-.page-scheduler .sch-empty-state { text-align: center; padding: 36px 18px; }
+.page-scheduler .sch-empty-state {
+  text-align: center; padding: 36px 18px;
+  min-height: clamp(320px, 62vh, 720px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
 .page-scheduler .empty-icon { display: block; font-size: 40px; color: var(--accent-text); margin-bottom: 10px; }
 .page-scheduler .sch-empty-state h3 { font-size: 16px; color: var(--text-primary); }
 .page-scheduler .sch-empty-state p { font-size: 12.5px; color: var(--text-muted); margin: 8px 0 14px; }
@@ -313,12 +320,14 @@
 @media (max-width: 1100px) {
   .page-scheduler .sch-workbench { grid-template-columns: minmax(0, 1fr); }
   .page-scheduler .sch-config { position: static; height: auto; }
-  .page-scheduler .sch-config-scroll { overflow: visible; max-height: none; }
+  /* 单栏时压缩配置区，主操作条吸底，结果区不再被推到 1500px 之外 */
+  .page-scheduler .sch-config-scroll { max-height: min(58vh, 560px); overflow-y: auto; }
+  .page-scheduler .sch-action-bar { position: sticky; bottom: 0; z-index: 12; }
+  .page-scheduler .sch-empty-state { min-height: 320px; }
   .page-scheduler .summary-bottom { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-height: 700px) {
   .page-scheduler .sch-config { position: static; height: auto; }
-  .page-scheduler .sch-config-scroll { overflow: visible; }
 }
 @media (max-width: 640px) {
   .page-scheduler .person-card { grid-template-columns: minmax(0, 1fr); }
