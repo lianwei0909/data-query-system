@@ -163,25 +163,27 @@ export function saveCustom(text: string, ls: StorageLike): void {
 }
 
 // ── 规则 ──
-export function defaultRules(): Rules { return { ...SCH.DEFAULT_RULES } }
+// 「夜班后次日不上白班」已下沉为底层固定硬约束：不再提供界面开关，也不接受存档里的旧值。
+const N2D_HARD = true
+export function defaultRules(): Rules { return { ...SCH.DEFAULT_RULES, nightToDayHard: N2D_HARD } }
 export function loadRules(ls: StorageLike): Rules {
   try {
     const raw = ls.getItem(LS_RULES)
     if (raw) {
       let r = JSON.parse(raw) as Partial<Rules> | null
-      if (!r || r.v === undefined || r.v < 2) {                          // 旧存档「小夜=软约束」，升级为硬性要求
+      if (!r || r.v === undefined || r.v < 2) {                          // 旧存档升级
         r = r || {}
-        r.nightToDayHard = true
         r.v = 2
-        saveRules(r as Rules, ls)
       }
-      return { ...defaultRules(), ...r }                                 // v2.1：缺字段的残缺存档用默认值补齐
+      const merged = { ...defaultRules(), ...r, nightToDayHard: N2D_HARD } // 缺字段用默认值补齐；夜班硬约束强制开启
+      if (r.nightToDayHard !== N2D_HARD || r.v !== 2) saveRules(merged, ls) // 把废弃的软约束存档一并修正
+      return merged
     }
   } catch { /* 存档损坏 */ }
   return defaultRules()
 }
 export function saveRules(r: Rules, ls: StorageLike): void {
-  try { ls.setItem(LS_RULES, JSON.stringify(r)) } catch { /* 存储满 */ }
+  try { ls.setItem(LS_RULES, JSON.stringify({ ...r, nightToDayHard: N2D_HARD })) } catch { /* 存储满 */ }
 }
 
 // ── 跨周期衔接 ──

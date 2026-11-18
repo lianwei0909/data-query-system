@@ -8,7 +8,6 @@ const emit = defineEmits<{
   (e: 'update:year', v: number): void
   (e: 'update:month', v: number): void
   (e: 'rule', key: RuleNumKey, v: number): void
-  (e: 'n2d', v: boolean): void
   (e: 'fixedRest', v: boolean): void
   (e: 'reset'): void
 }>()
@@ -77,12 +76,10 @@ function shiftPeriod(delta: number) {
       </div>
     </div>
 
+    <!-- 夜班后次日不上白班已下沉为底层固定硬约束，不再展示开关；保留隐藏 checkbox 以兼容既有 DOM 契约 -->
+    <input type="checkbox" id="rule-n2dh" :checked="true" disabled hidden aria-hidden="true" />
+
     <div class="switch-row">
-      <label class="switch-item">
-        <span class="switch-text"><b>夜班后次日不上白班</b><small>硬约束，可能压缩白班人数</small></span>
-        <input type="checkbox" id="rule-n2dh" :checked="rules.nightToDayHard" @change="emit('n2d', ($event.target as HTMLInputElement).checked)" />
-        <i class="switch-track" aria-hidden="true"></i>
-      </label>
       <label class="switch-item">
         <span class="switch-text"><b>每人固定轮休</b><small>参考往期班表，每周休同样的两天</small></span>
         <input type="checkbox" id="rule-fixedrest" :checked="rules.fixedRest !== false" @change="emit('fixedRest', ($event.target as HTMLInputElement).checked)" />

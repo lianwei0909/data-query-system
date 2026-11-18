@@ -55,11 +55,6 @@ const pct = computed(() => {
 function setRule(key: RuleNumKey, v: number) {
   if (!isNaN(v) && v > 0) { rules.value[key] = v; S.saveRules(rules.value, ls) }
 }
-function setN2D(v: boolean) {
-  rules.value.nightToDayHard = v
-  S.saveRules(rules.value, ls)
-  toast(v ? '已把夜班约束设为硬约束（可能击穿白班下限）' : '已把夜班约束设为软约束（优先保证人数与双休）')
-}
 function setFixedRest(v: boolean) {
   rules.value.fixedRest = v
   S.saveRules(rules.value, ls)
@@ -165,7 +160,7 @@ onBeforeUnmount(() => {
           <div class="sch-config-scroll">
             <RulesPanel
               v-model:year="period.year" v-model:month="period.month" :years="years" :period-text="periodText" :rules="rules"
-              @rule="setRule" @n2d="setN2D" @fixed-rest="setFixedRest" @reset="resetRules"
+              @rule="setRule" @fixed-rest="setFixedRest" @reset="resetRules"
             />
             <div class="cfg-card people-card">
               <div class="cfg-head">

@@ -46,6 +46,12 @@ describe('规则', () => {
     expect(JSON.parse(ls.map.get('scheduler_rules')!).v).toBe(2)
     expect(S.loadRules(memLS({ scheduler_rules: '{"minDay":4,"v":2}' }))).toEqual({ ...SCH.DEFAULT_RULES, minDay: 4 })
   })
+  it('夜班后次日不上白班固定在底层：v2 存档写 false 也会被强制开启', () => {
+    const ls = memLS({ scheduler_rules: JSON.stringify({ ...SCH.DEFAULT_RULES, nightToDayHard: false, v: 2 }) })
+    expect(S.loadRules(ls).nightToDayHard).toBe(true)
+    S.saveRules({ ...SCH.DEFAULT_RULES, nightToDayHard: false }, ls)
+    expect(S.loadRules(ls).nightToDayHard).toBe(true)
+  })
 })
 
 describe('跨周期衔接', () => {
