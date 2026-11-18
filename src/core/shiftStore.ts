@@ -64,6 +64,15 @@ export function shiftDateRange(rows: ShiftRow[]): { from: string; to: string; da
   const list = [...ks].sort()
   return list.length ? { from: list[0], to: list[list.length - 1], days: list.length } : null
 }
+/** 真正填了班次的日期范围：只有列名、整列为空的日期不算（给用户看的提示用这个口径） */
+export function shiftFilledRange(rows: ShiftRow[]): { from: string; to: string; days: number } | null {
+  const ks = new Set<string>()
+  rows.forEach(r => r && Object.keys(r).forEach(k => {
+    if (isYmdKey(k) && String(r[k] ?? '').trim()) ks.add(k)
+  }))
+  const list = [...ks].sort()
+  return list.length ? { from: list[0], to: list[list.length - 1], days: list.length } : null
+}
 
 // ── 响应式存储：任何页面导入后，日历等页面自动刷新 ──
 export const shiftState = reactive({ rows: [] as ShiftRow[], version: 0 })
@@ -161,4 +170,12 @@ export function replaceShiftRows(rows: ShiftRow[]): void {
   localStorage.setItem(SHIFT_KEY, JSON.stringify(rows))
   shiftState.rows = rows
   shiftState.version++
+}
+
+// ── 跨标签页同步：别的标签页导入 / 撤销 / 改查看人后，停留在首页的标签也要立刻刷新 ──
+// 同一标签页内的写入不触发 storage 事件（由 importShiftRows / replaceShiftRows 直接更新 shiftState）
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', e => {
+    if ((e.key === SHIFT_KEY || e.key === 'viewer_name') && e.newValue !== e.oldValue) loadShiftRows()
+  })
 }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // 排班日历：统计卡 / 日历 / 当日出勤 / 本月概览全部由 core 纯函数计算，口径与单测一致
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { shiftState } from '../core/shiftStore'
+import { isYmdKey } from '../core/date'
 import { computeDayAttendance, computeOverview, computeStats } from '../core/stats'
 import { classifyShift, findUserRow, getDateShift, listPeople, matchPerson, personLabel } from '../core/shift'
 import { readLS, writeLS, removeLS } from '../core/storage'
@@ -32,6 +33,17 @@ function setStatus(text: string, cls = '') {
   if (statusTimer) clearTimeout(statusTimer)
   if (cls === 'ok') statusTimer = setTimeout(() => { whoStatus.value = { text: '', cls: '' } }, 3000)
 }
+const whoEl = ref<HTMLInputElement | null>(null)
+function focusWho() {
+  whoEl.value?.focus()
+  whoEl.value?.select?.()
+  setStatus('请输入英文名 / 中文名，或从下拉里选一个人', 'warn')
+}
+// 别的标签页导入并自动选好查看人后，本标签也要跟着更新（storage 事件让 shiftState.version 自增）
+watch(() => shiftState.version, () => {
+  const saved = readLS(WHO_KEY) || ''
+  if (saved && saved !== viewer.value) { viewer.value = saved; whoInput.value = saved }
+})
 function setViewer(q: string, fill = true) {
   q = q.trim()
   if (!q) { viewer.value = ''; removeLS(WHO_KEY); setStatus(''); return }
@@ -90,13 +102,41 @@ const cells = computed<Cell[]>(() => {
   for (let n = 1; n <= remain; n++) out.push({ d: n, other: true, wd: new Date(y, m + 1, n).getDay(), today: false })
   return out
 })
-const calHint = computed<{ text: string; to: string } | null>(() => {
+interface CalHint { text: string; to?: string; focus?: boolean }
+const calHint = computed<CalHint | null>(() => {
   if (!data.value.length) return { text: '还没有班表 · 去数据导入 ›', to: '/import' }
-  if (!userRow.value) return null
+  // 数据已导入但没选查看人时，日历格子是空的：必须给出明确引导，否则看起来像「导入没生效」
+  if (!userRow.value) {
+    return viewer.value
+      ? { text: `班表中找不到「${viewer.value}」· 请在上方重新选择 ›`, focus: true }
+      : { text: '班表已导入 · 请在上方选择「查看」的人 ›', focus: true }
+  }
   const first = cells.value.find(c => !c.other && c.none)
   if (!first) return null
   return { text: first.d === 1 ? '本月还没有班表 · 去智能排班 ›' : `${cal.value.m + 1}/${first.d} 起还没有班表 · 去智能排班 ›`, to: '/scheduler' }
 })
+
+// 班表里有数据、但当前显示的月份没有任何班次（导入往期班表时常见）：给出一键跳转
+const dataMonths = computed(() => {
+  const s = new Set<string>()
+  for (const r of data.value) for (const k of Object.keys(r)) {
+    if (isYmdKey(k) && String(r[k] ?? '').trim()) s.add(k.slice(0, 7))
+  }
+  return [...s].sort()
+})
+const nearestMonth = computed(() => {
+  const cur = `${cal.value.y}-${String(cal.value.m + 1).padStart(2, '0')}`
+  if (!dataMonths.value.length || dataMonths.value.includes(cur)) return null
+  const toNum = (s: string) => { const [y, m] = s.split('-').map(Number); return y * 12 + m }
+  const c = toNum(cur)
+  return dataMonths.value.reduce((a, b) => Math.abs(toNum(b) - c) < Math.abs(toNum(a) - c) ? b : a)
+})
+function jumpToDataMonth() {
+  const k = nearestMonth.value
+  if (!k) return
+  const [y, m] = k.split('-').map(Number)
+  changeMonth((y - cal.value.y) * 12 + (m - 1 - cal.value.m))
+}
 function changeMonth(delta: number) {
   let { y, m } = cal.value
   m += delta
@@ -131,7 +171,7 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
       <span class="who-status" :class="whoStatus.cls">{{ whoStatus.text }}</span>
       <span class="who-label">查看</span>
       <div class="who-avatar" :class="{ miss: !viewerPerson }">{{ viewerPerson ? (viewerPerson.cn || viewerPerson.en).charAt(0).toUpperCase() : '?' }}</div>
-      <input v-model="whoInput" type="text" class="who-input" list="who-options" placeholder="英文名 / 中文名" autocomplete="off" spellcheck="false"
+      <input ref="whoEl" v-model="whoInput" type="text" class="who-input" list="who-options" placeholder="英文名 / 中文名" autocomplete="off" spellcheck="false"
         aria-label="查看谁的班表" @input="onWhoInput" @change="setViewer(whoInput)" @keydown.enter.prevent="setViewer(whoInput)"
         @keydown.esc="whoInput = ''; setViewer('')" />
       <button type="button" class="who-clear" title="清空" aria-label="清空查看人" @click="whoInput = ''; setViewer('')">×</button>
@@ -175,12 +215,16 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
           <div style="display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap">
             <div class="card-title">{{ cal.y }}年 {{ cal.m + 1 }}月<span class="card-title-sub">排班总览</span></div>
             <span v-if="calHint" class="cal-hint" role="link" tabindex="0" title="点击前往"
-              @click="router.push(calHint.to)" @keydown.enter="router.push(calHint.to)">{{ calHint.text }}</span>
+              @click="calHint.to ? router.push(calHint.to) : focusWho()" @keydown.enter="calHint.to ? router.push(calHint.to) : focusWho()">{{ calHint.text }}</span>
           </div>
           <div class="cal-nav">
             <button type="button" class="cal-nav-btn" title="上个月" aria-label="上个月" @click="changeMonth(-1)">◀</button>
             <button type="button" class="cal-nav-btn" title="下个月" aria-label="下个月" @click="changeMonth(1)">▶</button>
           </div>
+        </div>
+        <div v-if="nearestMonth" class="cal-month-hint">
+          <span>当前显示 {{ cal.y }} 年 {{ cal.m + 1 }} 月，班表里没有这个月的数据（已导入：{{ dataMonths[0] }} ~ {{ dataMonths[dataMonths.length - 1] }}）</span>
+          <button type="button" @click="jumpToDataMonth">跳到 {{ nearestMonth }} ›</button>
         </div>
         <div class="cal-legend">
           <div class="legend-item"><div class="legend-dot blue" />白班</div>
@@ -270,4 +314,7 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
 
 <style scoped>
 .calendar-who { margin: 0 0 14px auto; justify-content: flex-end; flex-wrap: wrap; }
+.cal-month-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2); font-size: 12.5px; color: var(--text-secondary); }
+.cal-month-hint button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--accent-text); font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.cal-month-hint button:hover { border-color: var(--accent); }
 </style>

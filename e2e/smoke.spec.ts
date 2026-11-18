@@ -52,6 +52,46 @@ test('导入：先核对差异，覆盖明细与实际写入一致，可撤销',
   expect(errors).toEqual([])
 })
 
+test('导入后未选查看人：自动选中首位人员，首页日历立即显示班次', async ({ page }) => {
+  const errors = await open(page, './#/import')          // 故意不预置 viewer_name
+  await page.locator('input[type=file]').setInputFiles({ name: '班表.csv', mimeType: 'text/csv', buffer: Buffer.from(toCsv(shiftRows())) })
+  await expect(page.locator('.diff-chip').first()).toContainText(`${PEOPLE.length} 名新人员`)
+  await page.getByRole('button', { name: /确认导入/ }).click()
+  await expect(page.locator('.undo-bar')).toBeVisible()
+  expect(await page.evaluate(() => localStorage.getItem('viewer_name'))).toBe(PEOPLE[0][0])
+  await expect(page.locator('.import-summary')).toContainText('0 行无法按人合并')
+  await expect(page.locator('.import-summary')).toContainText('实际有班次的日期：2026-09-21 ~ 2026-11-20')
+  await page.goto('./')
+  await expect(page.locator('#calendar .cal-shift:not(.s-none)').first()).toBeVisible()
+  expect(await page.locator('#calendar .cal-shift:not(.s-none)').count()).toBeGreaterThanOrEqual(20)
+  expect(errors).toEqual([])
+})
+
+test('导入结果自查：姓名列识别不出时明确提示，不会静默写入', async ({ page }) => {
+  const errors = await open(page, './#/import')
+  const bad = '\ufeff' + ['name,2026-11-21,2026-11-22', '张三,白班,夜班', '李四,夜班,白班'].join('\n')
+  await page.locator('input[type=file]').setInputFiles({ name: '班表.csv', mimeType: 'text/csv', buffer: Buffer.from(bad) })
+  await expect(page.locator('.diff-warn').first()).toContainText('行没有英文名')
+  await page.getByRole('button', { name: /确认导入/ }).click()
+  await expect(page.locator('.import-summary')).toContainText('2 行无法按人合并')
+  await expect(page.locator('.import-summary .diff-warn')).toContainText('识别不出人员')
+  expect(errors).toEqual([])
+})
+
+test('跨标签页：另一个标签导入班表后，停留在首页的标签自动刷新', async ({ context, page }) => {
+  const errors = await open(page, './')
+  await expect(page.locator('.attendance-count-num')).toHaveText('--')
+  const other = await context.newPage()
+  await other.clock.setFixedTime(NOW)
+  await other.goto('./#/import')
+  await other.locator('input[type=file]').setInputFiles({ name: '班表.csv', mimeType: 'text/csv', buffer: Buffer.from(toCsv(shiftRows())) })
+  await other.getByRole('button', { name: /确认导入/ }).click()
+  await expect(page.locator('.attendance-count-num')).not.toHaveText('--', { timeout: 10_000 })
+  await expect(page.locator('#calendar .cal-shift:not(.s-none)').first()).toBeVisible()
+  expect(errors).toEqual([])
+  await other.close()
+})
+
 test('日历：按查看人显示班次与统计', async ({ page }) => {
   const errors = await open(page, './', seed())
   await expect(page.locator('#calendar .cal-shift:not(.s-none)').first()).toBeVisible()
