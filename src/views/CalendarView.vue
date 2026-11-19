@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { shiftState } from '../core/shiftStore'
 import { isYmdKey } from '../core/date'
 import { computeDayAttendance, computeOverview, computeStats } from '../core/stats'
+import { holidayYear } from '../core/holidays'
 import { classifyShift, findUserRow, getDateShift, listPeople, matchPerson, personLabel } from '../core/shift'
 import { readLS, writeLS, removeLS } from '../core/storage'
 import NotesBoard from '../components/NotesBoard.vue'
@@ -78,23 +79,28 @@ const ovRows = computed(() => {
 })
 
 // ── 日历网格 ──
-interface Cell { d: number; other: boolean; wd: number; today: boolean; shift?: { k: string; t: string; raw: string } | null; none?: boolean }
+interface Cell { d: number; other: boolean; wd: number; today: boolean; shift?: { k: string; t: string; raw: string } | null; none?: boolean; holiday?: 'off' | 'work' | null }
+const holidayConfigured = computed(() => !!holidayYear(cal.value.y))
 const cells = computed<Cell[]>(() => {
   const { y, m } = cal.value
   const first = new Date(y, m, 1).getDay()
   const dim = new Date(y, m + 1, 0).getDate()
   const dimPrev = new Date(y, m, 0).getDate()
   const todayKey = today.getTime()
+  const hy = holidayYear(y)
   const out: Cell[] = []
   for (let i = first - 1; i >= 0; i--) out.push({ d: dimPrev - i, other: true, wd: new Date(y, m - 1, dimPrev - i).getDay(), today: false })
   for (let d = 1; d <= dim; d++) {
     const date = new Date(y, m, d)
     const raw = userRow.value ? getDateShift(userRow.value, y, m + 1, d) : ''
     const c = raw ? classifyShift(raw) : null
+    const key = `${m + 1}-${d}`
+    const holiday = hy ? (hy.off.includes(key) ? 'off' : hy.work.includes(key) ? 'work' : null) : null
     out.push({
       d, other: false, wd: date.getDay(), today: date.getTime() === todayKey,
       shift: c ? { ...c, raw } : null,
-      none: !!userRow.value && !raw && date.getTime() >= todayKey
+      none: !!userRow.value && !raw && date.getTime() >= todayKey,
+      holiday
     })
   }
   const total = first + dim
@@ -231,15 +237,19 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
           <div class="legend-item"><div class="legend-dot orange" />夜班</div>
           <div class="legend-item"><div class="legend-dot red" />休息</div>
           <div class="legend-item"><div class="legend-dot purple" />请假</div>
+          <div class="legend-item"><div class="legend-dot holiday" />法定假</div>
+          <div class="legend-item"><div class="legend-dot makeup" />调休班</div>
+          <span v-if="!holidayConfigured" class="holiday-unconfigured">{{ cal.y }} 年节假日未公布，仅按周末推算</span>
         </div>
         <div class="cal-grid">
           <div v-for="(w, i) in WEEK" :key="'h' + i" class="cal-head" :class="{ weekend: i === 0 || i === 6 }">{{ w }}</div>
           <div v-for="(c, i) in cells" :key="i" class="cal-cell"
-            :class="{ 'weekend-col': c.wd === 0 || c.wd === 6, 'other-month': c.other, empty: c.other, clickable: !c.other, today: c.today, selected: isSel(c) }"
+            :class="{ 'weekend-col': c.wd === 0 || c.wd === 6, 'other-month': c.other, empty: c.other, clickable: !c.other, today: c.today, selected: isSel(c), 'hol-off': !c.other && c.holiday === 'off', 'hol-work': !c.other && c.holiday === 'work' }"
             :data-s="c.shift?.k" :tabindex="c.other ? -1 : 0" :role="c.other ? undefined : 'button'"
             :aria-label="c.other ? undefined : `${cal.m + 1}月${c.d}日` + (c.shift ? ' ' + c.shift.raw : '')"
-            :title="c.shift ? `${cal.m + 1}月${c.d}日：${c.shift.raw}` : undefined"
+            :title="(c.shift ? `${cal.m + 1}月${c.d}日：${c.shift.raw}` : `${cal.m + 1}月${c.d}日`) + (c.holiday === 'off' ? ' · 法定节假日' : c.holiday === 'work' ? ' · 调休补班' : '')"
             @click="pick(c)" @keydown.enter.prevent="pick(c)" @keydown.space.prevent="pick(c)">
+            <span v-if="!c.other && c.holiday" class="cal-holiday" :class="'h-' + c.holiday">{{ c.holiday === 'off' ? '假' : '班' }}</span>
             <div class="cal-date">{{ c.d }}</div>
             <span v-if="!c.other && c.shift" class="cal-shift" :class="'s-' + c.shift.k" :title="c.shift.raw">{{ c.shift.raw }}</span>
             <span v-else-if="!c.other && c.none" class="cal-shift s-none">未排</span>
@@ -317,4 +327,16 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
 .cal-month-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2); font-size: 12.5px; color: var(--text-secondary); }
 .cal-month-hint button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--accent-text); font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .cal-month-hint button:hover { border-color: var(--accent); }
+/* 法定节假日 / 调休补班：角标 + 格子淡底，颜色沿用已通过对比度校验的变量 */
+.cal-holiday {
+  position: absolute; top: 3px; right: 4px; z-index: 2; pointer-events: none;
+  font-size: 10px; font-weight: 700; line-height: 1; padding: 2px 4px; border-radius: 4px;
+}
+.cal-holiday.h-off { background: var(--red-bg); color: var(--red-text); border: 1px solid var(--red-text); }
+.cal-holiday.h-work { background: var(--gold-bg); color: var(--warn-text); border: 1px solid var(--warn-text); }
+.cal-cell.hol-off { background: var(--red-bg); }
+.cal-cell.hol-work { background: var(--gold-bg); }
+.legend-dot.holiday { background: var(--red); }
+.legend-dot.makeup { background: var(--gold); }
+.holiday-unconfigured { font-size: 11.5px; color: var(--text-muted); }
 </style>
