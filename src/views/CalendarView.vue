@@ -6,6 +6,7 @@ import { shiftState } from '../core/shiftStore'
 import { isYmdKey } from '../core/date'
 import { computeDayAttendance, computeOverview, computeStats } from '../core/stats'
 import { holidayYear } from '../core/holidays'
+import { lunarLabel } from '../core/lunar'
 import { classifyShift, findUserRow, getDateShift, listPeople, matchPerson, personLabel } from '../core/shift'
 import { readLS, writeLS, removeLS } from '../core/storage'
 import NotesBoard from '../components/NotesBoard.vue'
@@ -79,7 +80,7 @@ const ovRows = computed(() => {
 })
 
 // ── 日历网格 ──
-interface Cell { d: number; other: boolean; wd: number; today: boolean; shift?: { k: string; t: string; raw: string } | null; none?: boolean; holiday?: 'off' | 'work' | null }
+interface Cell { d: number; other: boolean; wd: number; today: boolean; shift?: { k: string; t: string; raw: string } | null; none?: boolean; holiday?: 'off' | 'work' | null; lunar: { text: string; kind: 'festival' | 'lunar' } }
 const holidayConfigured = computed(() => !!holidayYear(cal.value.y))
 const cells = computed<Cell[]>(() => {
   const { y, m } = cal.value
@@ -89,7 +90,10 @@ const cells = computed<Cell[]>(() => {
   const todayKey = today.getTime()
   const hy = holidayYear(y)
   const out: Cell[] = []
-  for (let i = first - 1; i >= 0; i--) out.push({ d: dimPrev - i, other: true, wd: new Date(y, m - 1, dimPrev - i).getDay(), today: false })
+  for (let i = first - 1; i >= 0; i--) {
+    const py = y + (m === 0 ? -1 : 0), pm = (m + 11) % 12, pd = dimPrev - i
+    out.push({ d: pd, other: true, wd: new Date(py, pm, pd).getDay(), today: false, lunar: lunarLabel(py, pm + 1, pd) })
+  }
   for (let d = 1; d <= dim; d++) {
     const date = new Date(y, m, d)
     const raw = userRow.value ? getDateShift(userRow.value, y, m + 1, d) : ''
@@ -100,12 +104,12 @@ const cells = computed<Cell[]>(() => {
       d, other: false, wd: date.getDay(), today: date.getTime() === todayKey,
       shift: c ? { ...c, raw } : null,
       none: !!userRow.value && !raw && date.getTime() >= todayKey,
-      holiday
+      holiday, lunar: lunarLabel(y, m + 1, d)
     })
   }
   const total = first + dim
   const remain = total <= 35 ? 35 - total : 42 - total
-  for (let n = 1; n <= remain; n++) out.push({ d: n, other: true, wd: new Date(y, m + 1, n).getDay(), today: false })
+  for (let n = 1; n <= remain; n++) out.push({ d: n, other: true, wd: new Date(y, m + 1, n).getDay(), today: false, lunar: lunarLabel(y, m + 2, n) })
   return out
 })
 interface CalHint { text: string; to?: string; focus?: boolean }
@@ -251,6 +255,7 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
             @click="pick(c)" @keydown.enter.prevent="pick(c)" @keydown.space.prevent="pick(c)">
             <span v-if="!c.other && c.holiday" class="cal-holiday" :class="'h-' + c.holiday">{{ c.holiday === 'off' ? '假' : '班' }}</span>
             <div class="cal-date">{{ c.d }}</div>
+            <span class="cal-lunar" :class="{ 'is-festival': c.lunar.kind === 'festival' }" :title="c.lunar.kind === 'festival' ? c.lunar.text : '农历 ' + c.lunar.text">{{ c.lunar.text }}</span>
             <span v-if="!c.other && c.shift" class="cal-shift" :class="'s-' + c.shift.k" :title="c.shift.raw">{{ c.shift.raw }}</span>
             <span v-else-if="!c.other && c.none" class="cal-shift s-none">未排</span>
           </div>
