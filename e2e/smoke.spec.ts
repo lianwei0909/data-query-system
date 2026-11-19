@@ -95,7 +95,7 @@ test('智能排班导出的两行表头：按人合并，后续班次显示到�
   await expect(page.locator('.import-summary')).toContainText('0 行无法按人合并')
   await expect(page.locator('.import-summary')).toContainText('实际有班次的日期：2026-09-21 ~ 2026-11-23')
   await page.goto('./')
-  await expect(page.locator('#calendar .cal-cell[aria-label^="11月21日"] .cal-shift')).toHaveText('白')
+  await expect(page.locator('#calendar .cal-cell[aria-label^="11月21日"] .cal-shift')).toHaveText('白班')
   expect(await page.locator('#calendar .cal-shift:not(.s-none)').count()).toBeGreaterThanOrEqual(23)
   expect(errors).toEqual([])
 })

@@ -241,7 +241,7 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
             :title="c.shift ? `${cal.m + 1}月${c.d}日：${c.shift.raw}` : undefined"
             @click="pick(c)" @keydown.enter.prevent="pick(c)" @keydown.space.prevent="pick(c)">
             <div class="cal-date">{{ c.d }}</div>
-            <span v-if="!c.other && c.shift" class="cal-shift" :class="'s-' + c.shift.k" :title="c.shift.raw">{{ c.shift.t }}</span>
+            <span v-if="!c.other && c.shift" class="cal-shift" :class="'s-' + c.shift.k" :title="c.shift.raw">{{ c.shift.raw }}</span>
             <span v-else-if="!c.other && c.none" class="cal-shift s-none">未排</span>
           </div>
         </div>
