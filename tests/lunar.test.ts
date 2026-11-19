@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lunarLabel } from '../src/core/lunar'
+import { lunarLabel, shiftMonth } from '../src/core/lunar'
 
 describe('日历农历小字', () => {
   it('节气优先于农历日', () => {
@@ -15,5 +15,12 @@ describe('日历农历小字', () => {
   it('普通日期显示农历', () => {
     expect(lunarLabel(2026, 11, 19)).toEqual({ text: '十一', kind: 'lunar' })
     expect(lunarLabel(2026, 12, 1)).toEqual({ text: '廿三', kind: 'lunar' })
+  })
+  it('跨年月份偏移与越界兜底（修复 wrong month 13）', () => {
+    expect(shiftMonth(2026, 11, 1)).toEqual({ y: 2027, m: 0 })   // 12 月的下月 = 次年 1 月
+    expect(shiftMonth(2027, 0, -1)).toEqual({ y: 2026, m: 11 })
+    expect(lunarLabel(2027, 1, 1).text).toBeTruthy()
+    expect(lunarLabel(2026, 13, 1)).toEqual({ text: '', kind: 'lunar' })
+    expect(lunarLabel(2026, 12, 32)).toEqual({ text: '', kind: 'lunar' })
   })
 })

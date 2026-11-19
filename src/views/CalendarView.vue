@@ -6,7 +6,7 @@ import { shiftState } from '../core/shiftStore'
 import { isYmdKey } from '../core/date'
 import { computeDayAttendance, computeOverview, computeStats } from '../core/stats'
 import { holidayYear } from '../core/holidays'
-import { lunarLabel } from '../core/lunar'
+import { lunarLabel, shiftMonth } from '../core/lunar'
 import { classifyShift, findUserRow, getDateShift, listPeople, matchPerson, personLabel } from '../core/shift'
 import { readLS, writeLS, removeLS } from '../core/storage'
 import NotesBoard from '../components/NotesBoard.vue'
@@ -90,9 +90,10 @@ const cells = computed<Cell[]>(() => {
   const todayKey = today.getTime()
   const hy = holidayYear(y)
   const out: Cell[] = []
+  const prev = shiftMonth(y, m, -1)
   for (let i = first - 1; i >= 0; i--) {
-    const py = y + (m === 0 ? -1 : 0), pm = (m + 11) % 12, pd = dimPrev - i
-    out.push({ d: pd, other: true, wd: new Date(py, pm, pd).getDay(), today: false, lunar: lunarLabel(py, pm + 1, pd) })
+    const pd = dimPrev - i
+    out.push({ d: pd, other: true, wd: new Date(prev.y, prev.m, pd).getDay(), today: false, lunar: lunarLabel(prev.y, prev.m + 1, pd) })
   }
   for (let d = 1; d <= dim; d++) {
     const date = new Date(y, m, d)
@@ -109,7 +110,8 @@ const cells = computed<Cell[]>(() => {
   }
   const total = first + dim
   const remain = total <= 35 ? 35 - total : 42 - total
-  for (let n = 1; n <= remain; n++) out.push({ d: n, other: true, wd: new Date(y, m + 1, n).getDay(), today: false, lunar: lunarLabel(y, m + 2, n) })
+  const next = shiftMonth(y, m, 1)
+  for (let n = 1; n <= remain; n++) out.push({ d: n, other: true, wd: new Date(next.y, next.m, n).getDay(), today: false, lunar: lunarLabel(next.y, next.m + 1, n) })
   return out
 })
 interface CalHint { text: string; to?: string; focus?: boolean }
