@@ -18,7 +18,7 @@ const customPreview = computed(() => SCH.describeCustom(SCH.parseCustomNeed(prop
 const expanded = ref<Record<number, boolean>>({})
 const shown = (i: number) => expanded.value[i] ? chips.value[i] : chips.value[i].slice(0, 2)
 const toggle = (i: number) => { expanded.value = { ...expanded.value, [i]: !expanded.value[i] } }
-const val = (e: Event) => (e.target as HTMLInputElement).value
+const val = (e: Event) => (e.target as HTMLInputElement | HTMLTextAreaElement).value
 </script>
 
 <template>
@@ -49,9 +49,9 @@ const val = (e: Event) => (e.target as HTMLInputElement).value
             <span class="person-name"><b>全员规则</b><small>叠加在个人需求之上</small></span>
           </td>
           <td class="person-need">
-            <input type="text" :value="customText" aria-label="自定义需求（对全员生效）"
+            <textarea :value="customText" aria-label="自定义需求（对全员生效）" rows="3"
               placeholder="如：12月31日不休；每天白班至少3人；张三：12月1日-2日年假"
-              @input="emit('update:customText', val($event))" />
+              @input="emit('update:customText', val($event))"></textarea>
           </td>
           <td class="sch-need-preview person-preview" :title="customPreview">{{ customPreview }}</td>
         </tr>

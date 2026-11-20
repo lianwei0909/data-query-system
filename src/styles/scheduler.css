@@ -120,6 +120,17 @@
 }
 .page-scheduler .person-need input[type=text]:focus { border-color: var(--accent); }
 .page-scheduler .person-need input[type=text]::placeholder { color: var(--text-muted); }
+/* 全员规则：标题一行、输入框独占整行，给长需求留出足够宽度 */
+.page-scheduler .sch-custom-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.page-scheduler .sch-custom-row .person-id { margin-bottom: 2px; }
+.page-scheduler .sch-custom-row textarea {
+  width: 100%; box-sizing: border-box; display: block; resize: vertical;
+  min-height: 72px; padding: 8px 10px; line-height: 1.6;
+  background: var(--card-bg); color: var(--text-primary);
+  border: 1px solid var(--input-border); border-radius: 8px; font-size: 12px; font-family: inherit; outline: none;
+}
+.page-scheduler .sch-custom-row textarea:focus { border-color: var(--accent); }
+.page-scheduler .sch-custom-row textarea::placeholder { color: var(--text-muted); }
 .page-scheduler .chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .page-scheduler .need-chip { padding: 2px 6px; border-radius: 6px; font-size: 10.5px; line-height: 1.5; white-space: nowrap; }
 .page-scheduler .chip-leave { background: var(--leave-bg); color: var(--leave-text); }
