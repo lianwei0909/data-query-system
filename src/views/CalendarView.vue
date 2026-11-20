@@ -181,6 +181,7 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
     <!-- 查看人：传送到顶栏，与面包屑同一行 -->
     <Teleport to=".topbar">
       <div class="topbar-who who-box calendar-who">
+        <span class="who-status" :class="whoStatus.cls" role="status">{{ whoStatus.text }}</span>
         <span class="who-label">查看</span>
         <div class="who-avatar" :class="{ miss: !viewerPerson }">{{ viewerPerson ? (viewerPerson.cn || viewerPerson.en).charAt(0).toUpperCase() : '?' }}</div>
         <input ref="whoEl" v-model="whoInput" type="text" class="who-input" list="who-options" placeholder="英文名 / 中文名" autocomplete="off" spellcheck="false"
@@ -190,9 +191,6 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
         <datalist id="who-options"><option v-for="p in people" :key="p.en" :value="p.en" /></datalist>
       </div>
     </Teleport>
-
-    <!-- 查看人操作的临时状态提示留在页面内，不占常驻顶栏 -->
-    <div v-if="whoStatus.text" class="who-status-page" :class="whoStatus.cls" role="status">{{ whoStatus.text }}</div>
 
     <!-- 统计卡 -->
     <div class="stats-row">
@@ -334,12 +332,8 @@ onBeforeUnmount(() => { if (statusTimer) clearTimeout(statusTimer) })
 </template>
 
 <style scoped>
-/* Teleport 到顶栏后不再需要页面内的下边距；who-status 出现时不要挤走面包屑 */
+/* Teleport 到顶栏后不再需要页面内的下边距 */
 .calendar-who { margin: 0; justify-content: flex-end; flex-wrap: nowrap; }
-.who-status-page { font-size: 12.5px; margin: 0 0 10px; text-align: right; color: var(--text-secondary); }
-.who-status-page.ok { color: var(--ok-text); }
-.who-status-page.warn { color: var(--warn-text); }
-.who-status-page.err { color: var(--err-text); }
 .cal-month-hint { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--card-bg2); font-size: 12.5px; color: var(--text-secondary); }
 .cal-month-hint button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--accent-text); font-size: 12px; font-family: inherit; cursor: pointer; white-space: nowrap; }
 .cal-month-hint button:hover { border-color: var(--accent); }
