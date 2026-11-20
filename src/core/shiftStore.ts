@@ -187,6 +187,17 @@ export function replaceShiftRows(rows: ShiftRow[]): void {
   shiftState.version++
 }
 
+/** 清空班表及配套存档：查看人、上次排班缓存（人员名单本身来自班表，无需单独清） */
+export function clearShiftRows(): void {
+  try {
+    localStorage.removeItem(SHIFT_KEY)
+    localStorage.removeItem('viewer_name')
+    localStorage.removeItem('scheduler_last')
+  } catch { /* 隐私模式 */ }
+  shiftState.rows = []
+  shiftState.version++
+}
+
 // ── 跨标签页同步：别的标签页导入 / 撤销 / 改查看人后，停留在首页的标签也要立刻刷新 ──
 // 同一标签页内的写入不触发 storage 事件（由 importShiftRows / replaceShiftRows 直接更新 shiftState）
 if (typeof window !== 'undefined') {

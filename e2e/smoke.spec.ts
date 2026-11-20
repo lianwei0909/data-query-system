@@ -67,6 +67,21 @@ test('导入后未选查看人：自动选中首位人员，首页日历立即�
   expect(errors).toEqual([])
 })
 
+test('清空班表：二次确认后删除班表与配套存档，首页回到空状态', async ({ page }) => {
+  const errors = await open(page, './#/import', seed())
+  await expect(page.locator('#btn-clear-shifts')).toBeVisible()
+  page.once('dialog', d => d.accept())
+  await page.locator('#btn-clear-shifts').click()
+  await expect(page.locator('#btn-clear-shifts')).toHaveCount(0)
+  expect(await page.evaluate(() => localStorage.getItem('importedShiftData'))).toBeNull()
+  expect(await page.evaluate(() => localStorage.getItem('viewer_name'))).toBeNull()
+  expect(await page.evaluate(() => localStorage.getItem('scheduler_last'))).toBeNull()
+  await page.goto('./')
+  await expect(page.locator('#calendar .cal-shift:not(.s-none)')).toHaveCount(0)
+  await expect(page.locator('.cal-hint')).toContainText('还没有班表')
+  expect(errors).toEqual([])
+})
+
 test('导入结果自查：姓名列识别不出时明确提示，不会静默写入', async ({ page }) => {
   const errors = await open(page, './#/import')
   const bad = '\ufeff' + ['name,2026-11-21,2026-11-22', '张三,白班,夜班', '李四,夜班,白班'].join('\n')

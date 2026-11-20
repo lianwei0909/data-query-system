@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { diffShiftRows, importShiftRows, loadShiftRows, mergeShiftRows, replaceShiftRows, shiftRowLabel, shiftState } from '../src/core/shiftStore'
+import { clearShiftRows, diffShiftRows, importShiftRows, loadShiftRows, mergeShiftRows, replaceShiftRows, shiftRowLabel, shiftState } from '../src/core/shiftStore'
 
 const OLD = [
   { 英文名: 'alice', 中文名: '张一', '2026-11-20': '白班', '2026-11-21': '休', '2026-11-22': '' },
@@ -62,5 +62,18 @@ describe('撤销导入', () => {
     replaceShiftRows(backup)
     expect(JSON.parse(mem.get('importedShiftData')!)).toEqual(backup)
     expect(shiftState.version).toBe(v + 1)
+  })
+  it('清空班表：删除班表/查看人/上次排班存档，并触发刷新', () => {
+    mem.set('importedShiftData', JSON.stringify(OLD))
+    mem.set('viewer_name', 'alice')
+    mem.set('scheduler_last', '{}')
+    loadShiftRows()
+    const v = shiftState.version
+    clearShiftRows()
+    expect(mem.has('importedShiftData')).toBe(false)
+    expect(mem.has('viewer_name')).toBe(false)
+    expect(mem.has('scheduler_last')).toBe(false)
+    expect(loadShiftRows()).toEqual([])
+    expect(shiftState.version).toBeGreaterThan(v)
   })
 })

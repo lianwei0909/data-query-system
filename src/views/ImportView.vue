@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import UploadZone from '../components/UploadZone.vue'
 import { readTableFileAsSheet, normalizeScheduleExport } from '../core/readFile'
-import { diffShiftRows, importShiftRows, loadShiftRows, replaceShiftRows, shiftFilledRange, type ShiftDiff } from '../core/shiftStore'
+import { clearShiftRows, diffShiftRows, importShiftRows, loadShiftRows, replaceShiftRows, shiftFilledRange, type ShiftDiff } from '../core/shiftStore'
 import { listPeople, personLabel, resolveNameCols, type ShiftRow } from '../core/shift'
 import { inferDateKeys, isYmdKey } from '../core/date'
 import { readLS, writeLS, removeLS } from '../core/storage'
@@ -137,6 +137,16 @@ function undoImport() {
     toast('撤销失败：' + ((e as Error)?.message || '未知错误'), 'error')
   }
 }
+
+function clearAll() {
+  if (!existing.value) { toast('当前没有班表', 'info'); return }
+  if (!window.confirm('确定清空已上传的班表吗？\n\n首页日历、智能排班的人员名单、排班规则中的往期衔接都会一并清除，此操作不可撤销。')) return
+  clearShiftRows()
+  rows.value = []; columns.value = []; diff.value = null; summary.value = null; backup.value = null
+  autoViewer.value = null
+  existing.value = null
+  toast('已清空班表及相关存档', 'success')
+}
 </script>
 
 <template>
@@ -147,8 +157,9 @@ function undoImport() {
         <p>上传往期班表（CSV / Excel），首页日历与智能排班都从这里取数；重复导入会按人员与日期合并</p>
       </div>
 
-      <div v-if="existing" class="preview-section active">
-        <div class="hint-text">当前已有班表：{{ existing.from }} ~ {{ existing.to }}（{{ existing.days }} 天）</div>
+      <div v-if="existing" class="preview-section active existing-bar" role="status">
+        <span>当前已有班表：{{ existing.from }} ~ {{ existing.to }}（{{ existing.days }} 天）</span>
+        <button type="button" id="btn-clear-shifts" class="btn btn-danger" @click="clearAll">🗑 清空班表</button>
       </div>
 
       <div class="upload-section">
@@ -241,6 +252,9 @@ function undoImport() {
 .diff-to { color: var(--text-primary); font-weight: 600; }
 /* 全局 .sub-page-body .preview-section.active 会强制 display:block，这里提高优先级保持一行居中 */
 .preview-section.active.undo-bar { display: flex; align-items: center; justify-content: center; text-align: center; gap: 12px; flex-wrap: wrap; font-size: 13.5px; color: var(--text-secondary); }
+.preview-section.active.existing-bar { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; font-size: 13.5px; color: var(--text-secondary); }
+.btn-danger { padding: 6px 14px; border: 1px solid var(--err-text); border-radius: 8px; background: var(--red-bg); color: var(--err-text); font-size: 12.5px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.btn-danger:hover { background: var(--err-text); color: var(--card-bg); }
 .undo-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
 .import-summary { text-align: center; }
 .summary-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 4px 0 12px; }
