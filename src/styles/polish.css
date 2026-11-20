@@ -1,0 +1,269 @@
+
+/* ═══════════════════════════════════════════════════════════════════════
+   视觉增强层（polish）：在 app.css 之后加载，只改“观感”，不改布局结构与交互。
+   回滚：删掉 main.ts 里的 import './styles/polish.css' 即可恢复原样。
+   约束（与 e2e 对比度检测保持一致）：
+   - 文字色只用 tokens.css 的 text-* / *-text 变量；
+   - 不用渐变文字（background-clip:text）、不用 color-mix()/oklch()（检测脚本无法解析）；
+   - 文字所在底色的着色透明度已逐一按 WCAG AA 校验（暗/亮两套主题）。
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. 背景氛围：主区域三处柔光（固定在视口，不随内容滚动） ── */
+.main{
+  background-image:
+    radial-gradient(900px 520px at 6% -12%, var(--glow-1), transparent 62%),
+    radial-gradient(760px 480px at 102% 2%, var(--glow-2), transparent 62%),
+    radial-gradient(820px 560px at 72% 112%, var(--glow-3), transparent 60%);
+  background-repeat:no-repeat;
+}
+::selection{background:var(--nav-active-a)}
+
+/* ── 2. 侧栏：品牌标 + 顶部光晕 + 彩色图标 + 激活指示条 ── */
+.sidebar::before{
+  content:'';position:absolute;inset:0 0 auto 0;height:240px;z-index:-1;pointer-events:none;
+  background:radial-gradient(260px 180px at 30% 0%, var(--glow-1), transparent 70%);
+}
+.logo-icon{
+  width:42px;height:42px;border-radius:12px;color:#fff;
+  background:linear-gradient(135deg,var(--brand-a),var(--brand-b));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 8px 20px -6px var(--brand-shadow);
+}
+.logo-title{font-weight:700;letter-spacing:-.01em}
+.sidebar-section-label{letter-spacing:.14em}
+
+.nav-item{transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}
+.nav-item:hover{transform:translateX(2px)}
+.nav-item.active{
+  background:linear-gradient(90deg,var(--nav-active-a),var(--nav-active-b));
+  box-shadow:inset 0 0 0 1px var(--nav-active-ring);
+  color:var(--accent-text);
+}
+.nav-item.active .nav-label{font-weight:600}
+/* 激活指示条：贴在侧栏左边缘 */
+.nav-item.active::before{
+  content:'';position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;
+  background:linear-gradient(180deg,var(--brand-a),var(--brand-b));
+}
+/* 图标按色调着色（原来除日历外都是灰色） */
+.nav-icon{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.nav-icon.blue{color:var(--accent-text)}
+.nav-icon.gold{color:var(--gold-text)}
+.nav-icon.orange{color:var(--orange-text)}
+.nav-icon.green{color:var(--green-text)}
+.nav-icon.red{color:var(--red-text)}
+.nav-icon.purple{color:var(--purple-text)}
+.nav-item:hover .nav-icon{transform:scale(1.06)}
+.nav-item.active .nav-icon{
+  color:#fff;background:linear-gradient(135deg,var(--brand-a),var(--brand-b));
+  box-shadow:0 6px 16px -6px var(--brand-shadow);
+}
+
+/* ── 3. 顶栏：毛玻璃 + 页面徽标两行标题 + 日期胶囊 ── */
+.topbar{
+  position:relative;z-index:5;
+  background:var(--topbar-bg);
+  backdrop-filter:saturate(160%) blur(14px);-webkit-backdrop-filter:saturate(160%) blur(14px);
+  border-bottom-color:var(--border-light);
+}
+.breadcrumb{gap:10px;min-width:0}
+.crumb-badge{width:32px;height:32px;border-radius:10px;box-shadow:inset 0 0 0 1px var(--border)}
+.crumb-badge.blue{background:var(--accent-glow)}
+.crumb-badge.gold{background:var(--gold-bg)}
+.crumb-badge.orange{background:var(--orange-bg)}
+.crumb-badge.green{background:var(--green-bg)}
+.crumb-badge.red{background:var(--red-bg)}
+.crumb-text{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1.25}
+.crumb-text .breadcrumb-item{font-size:11.5px;color:var(--text-muted);letter-spacing:.04em;white-space:nowrap}
+.crumb-text .breadcrumb-item.current{font-size:15px;color:var(--text-primary);font-weight:700;letter-spacing:-.005em}
+.topbar-date{
+  display:inline-flex;align-items:center;gap:7px;flex-shrink:0;
+  padding:5px 12px;border-radius:999px;border:1px solid var(--border);
+  background:var(--card-bg2);font-size:12.5px;color:var(--text-secondary);white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.topbar-date-dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-bg)}
+.who-input{border-radius:10px;background:var(--card-bg2)}
+.who-avatar{box-shadow:0 4px 12px -4px var(--brand-shadow)}
+
+/* ── 4. 通用卡片：顶部微光 + 真实投影 ── */
+.calendar-card,.detail-card,.overview-card,.canvas-panel{
+  background-image:linear-gradient(180deg,var(--card-sheen),transparent 140px);
+}
+
+/* ── 5. 首页统计卡：每张卡一个色调（角落柔光 + 底部色条 + 悬浮上浮） ── */
+#page-calendar .stat-card{
+  --tone:var(--accent);--tone-tint:var(--tint-blue);
+  position:relative;overflow:hidden;padding:16px 18px;
+  background-image:
+    radial-gradient(260px 150px at 100% 0%, var(--tone-tint), transparent 70%),
+    linear-gradient(180deg,var(--card-sheen),transparent);
+  transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
+}
+#page-calendar .stat-card:nth-child(2){--tone:var(--green);--tone-tint:var(--tint-green)}
+#page-calendar .stat-card:nth-child(3){--tone:var(--orange);--tone-tint:var(--tint-orange)}
+#page-calendar .stat-card:nth-child(4){--tone:var(--purple);--tone-tint:var(--tint-purple)}
+#page-calendar .stat-card::after{
+  content:'';position:absolute;left:18px;right:18px;bottom:0;height:2px;border-radius:2px 2px 0 0;
+  background:linear-gradient(90deg,var(--tone),transparent);opacity:.75;
+}
+#page-calendar .stat-card:hover{transform:translateY(-2px);border-color:var(--input-border)}
+#page-calendar .stat-icon{
+  width:44px;height:44px;border-radius:12px;
+  box-shadow:inset 0 0 0 1px var(--border);
+}
+.stat-combo .num{font-size:28px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ── 6. 日历：分段式翻页、图例胶囊、格子悬浮与选中光晕 ── */
+.calendar-card{padding:18px 20px}
+.card-title{font-weight:700}
+.cal-nav{gap:2px;padding:3px;border:1px solid var(--border);border-radius:10px;background:var(--card-bg2)}
+.cal-nav-btn{border-color:transparent;border-radius:7px}
+.cal-nav-btn:hover{border-color:transparent;background:var(--hover-strong)}
+.cal-legend{gap:8px;margin:2px 0 10px}
+.legend-item{padding:5px 10px;border-radius:999px;background:var(--card-bg2);border:1px solid var(--border-light);font-size:12.5px}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.cal-head{font-size:14px;letter-spacing:.06em}
+.cal-cell{border:1px solid transparent;transition:background .15s ease,border-color .15s ease,transform .15s ease,box-shadow .15s ease}
+.cal-cell.clickable:hover{border-color:var(--border);transform:translateY(-1px)}
+.cal-cell.today{box-shadow:inset 0 0 0 1px var(--border)}
+.cal-cell.today .cal-date{box-shadow:0 6px 14px -4px var(--brand-shadow)}
+/* 选中格：底色调淡（班次标签与底色对比更足），用描边 + 外发光强调 */
+.cal-cell.selected{
+  background:var(--select-bg);
+  border-color:transparent;
+  box-shadow:inset 0 0 0 1.5px var(--accent),0 8px 20px -10px var(--accent);
+}
+.cal-shift{border-radius:7px;letter-spacing:.01em}
+.cal-hint{transition:border-color .15s ease,transform .15s ease}
+.cal-hint:hover{transform:translateY(-1px)}
+
+/* ── 7. 右侧详情：出勤人数渐变块、人员条悬浮 ── */
+.attendance-count{
+  padding:12px 14px;
+  background:linear-gradient(135deg,var(--accent-glow),var(--tint-purple));
+  border-color:var(--nav-active-ring);
+}
+.attendance-count-num{font-size:30px}
+.staff-item{transition:border-color .15s ease,transform .15s ease,background .15s ease}
+.staff-item:hover{transform:translateX(2px);border-color:var(--input-border)}
+.staff-avatar{box-shadow:inset 0 0 0 2px rgba(255,255,255,.18)}
+.ov-bar{height:7px;border-radius:4px}
+.ov-fill{border-radius:4px}
+
+/* ── 8. 子页面（导入 / 过审 / 不过审）：页头横幅、上传区、表格、按钮 ── */
+.sub-page-body .page-intro:not(.sch-page-intro){
+  position:relative;overflow:hidden;
+  padding:26px 24px 22px;margin-bottom:20px;
+  background-color:var(--card-bg);
+  background-image:
+    radial-gradient(520px 200px at 0% 0%, var(--tint-blue), transparent 70%),
+    radial-gradient(520px 220px at 100% 100%, var(--tint-purple), transparent 70%);
+  border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);
+}
+.sub-page-body .page-intro:not(.sch-page-intro) h2{font-size:22px;letter-spacing:-.01em}
+/* 标题左侧色条：过审 / 不过审页跟随各自主题色（ConverterView 传入 --conv-accent） */
+.sub-page-body h2::before{background:linear-gradient(180deg,var(--conv-accent,var(--accent)),var(--brand-b))}
+
+.sub-page-body .upload-section{
+  border:1.5px dashed var(--input-border);
+  background-color:var(--card-bg);
+  background-image:radial-gradient(620px 220px at 50% 0%, var(--tint-blue), transparent 70%);
+  box-shadow:var(--shadow);
+  transition:border-color .2s ease,box-shadow .2s ease;
+}
+.sub-page-body .upload-section:hover{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-glow),var(--shadow-hover)}
+.sub-page-body .upload-section:has(.drag-over){border-style:solid;border-color:var(--accent);box-shadow:0 0 0 6px var(--accent-glow),var(--shadow-hover)}
+.sub-page-body .upload-arrow-icon{
+  width:72px;height:72px;margin:0 auto 14px;border-radius:20px;align-items:center;
+  background:linear-gradient(135deg,var(--accent-glow),var(--tint-purple));
+  box-shadow:inset 0 0 0 1px var(--nav-active-ring);
+  transition:transform .25s ease;
+}
+.sub-page-body .upload-arrow-icon svg{opacity:1}
+.sub-page-body .upload-section:hover .upload-arrow-icon{transform:translateY(-3px)}
+.sub-page-body .upload-zone.drag-over .upload-arrow-icon{transform:translateY(-6px) scale(1.06)}
+/* “选择文件”是本页主操作：改为品牌渐变主按钮（白字在两端色标上均 ≥ 4.5） */
+.sub-page-body .file-label,
+.sub-page-body .file-label:hover{
+  border-color:transparent;color:#fff;font-weight:600;
+  background:linear-gradient(135deg,var(--btn-a),var(--btn-b));
+  box-shadow:0 8px 20px -8px var(--brand-shadow);
+}
+.sub-page-body .file-label{transition:transform .2s ease,box-shadow .2s ease}
+.sub-page-body .file-label:hover{transform:translateY(-1px);box-shadow:0 12px 26px -8px var(--brand-shadow)}
+
+.sub-page-body .preview-section,
+.sub-page-body .table-section{box-shadow:var(--shadow)}
+.sub-page-body .table-wrapper{box-shadow:inset 0 0 0 1px var(--border-light)}
+.sub-page-body th{background:var(--card-bg2);font-size:12px;letter-spacing:.06em}
+.sub-page-body tbody tr:nth-child(even) td{background:var(--tint-row)}
+.sub-page-body tbody tr:hover td{background:var(--hover-strong)}
+.sub-page-body .section-title .count{background:var(--accent-glow)}
+
+/* 过审 / 不过审页的统计卡：改用不透明次级卡片底，亮色主题下也有清晰边界 */
+.sub-page-body .stat-card{background:var(--card-bg2);border-color:var(--border)}
+.sub-page-body .stat-number{font-variant-numeric:tabular-nums}
+
+.sub-page-body .btn-secondary{background:var(--card-bg2);border:1px solid var(--border);color:var(--text-secondary)}
+.sub-page-body .btn-secondary:hover{background:var(--hover-strong);border-color:var(--input-border-hover);color:var(--text-primary);transform:translateY(-1px)}
+.sub-page-body .page-btn{background:var(--card-bg2)}
+
+/* ── 9. 智能排班页：卡片微光、标题色点（选择器加 .sub-page-body 以压过按需加载的 scheduler.css） ── */
+.page-scheduler.sub-page-body .cfg-card,
+.page-scheduler.sub-page-body .sch-result-box,
+.page-scheduler.sub-page-body .summary-panel,
+.page-scheduler.sub-page-body .solve-progress,
+.page-scheduler.sub-page-body .sch-empty-state{
+  background-image:linear-gradient(180deg,var(--card-sheen),transparent 140px);
+}
+.page-scheduler.sub-page-body .cfg-title{display:inline-flex;align-items:center;gap:8px}
+.page-scheduler.sub-page-body .cfg-title::before{
+  content:'';width:8px;height:8px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--brand-a),var(--brand-b));
+  box-shadow:0 0 0 3px var(--accent-glow);
+}
+.page-scheduler.sub-page-body .btn-primary-main{box-shadow:0 10px 24px -10px var(--brand-shadow)}
+
+/* ── 10. 入场动效：卡片依次轻微上浮淡入 ── */
+@keyframes polishRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#page-calendar .stat-card,
+#page-calendar .calendar-card,
+#page-calendar .side-col > *,
+.sub-page-body .page-intro:not(.sch-page-intro),
+.sub-page-body .upload-section{animation:polishRise .45s cubic-bezier(.2,.8,.2,1) both}
+#page-calendar .stat-card:nth-child(2){animation-delay:.04s}
+#page-calendar .stat-card:nth-child(3){animation-delay:.08s}
+#page-calendar .stat-card:nth-child(4){animation-delay:.12s}
+#page-calendar .calendar-card{animation-delay:.1s}
+#page-calendar .side-col > *{animation-delay:.16s}
+.sub-page-body .upload-section{animation-delay:.06s}
+
+/* ── 11. 滚动条：略加粗、圆角、悬停加深 ── */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--input-border-hover);background-clip:padding-box}
+
+/* ── 12. 响应式补充（与 app.css 断点一致） ── */
+@media (max-width:1439px){
+  .nav-item.active::before{left:-10px}
+}
+@media (max-width:1199px){
+  .topbar-date{display:none}
+}
+@media (max-width:767px){
+  /* 手机底部导航：指示条改到顶部 */
+  .nav-item.active::before{left:28%;right:28%;top:0;bottom:auto;width:auto;height:3px;border-radius:0 0 3px 3px}
+  .nav-item:hover{transform:none}
+  .sidebar::before{display:none}
+  .crumb-badge{width:28px;height:28px}
+  .sub-page-body .page-intro:not(.sch-page-intro){padding:18px 14px 16px}
+}
+
+/* ── 13. 减少动态效果：关闭本层新增的位移与入场动画 ── */
+@media (prefers-reduced-motion:reduce){
+  #page-calendar .stat-card,#page-calendar .calendar-card,#page-calendar .side-col > *,
+  .sub-page-body .page-intro,.sub-page-body .upload-section{animation:none}
+  .nav-item:hover,.nav-item:hover .nav-icon,#page-calendar .stat-card:hover,.cal-cell.clickable:hover,
+  .staff-item:hover,.cal-hint:hover,.sub-page-body .file-label:hover,.sub-page-body .btn-secondary:hover,
+  .sub-page-body .upload-section:hover .upload-arrow-icon{transform:none}
+}

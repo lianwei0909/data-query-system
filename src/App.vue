@@ -5,8 +5,19 @@ import { useRoute } from 'vue-router'
 import { PAGES } from './router'
 import { theme, toggleTheme } from './composables/useTheme'
 import { ui } from './core/notify'
+import NavIcon from './components/NavIcon.vue'
 
 const route = useRoute()
+/** 页面图标的色调：侧栏图标、顶栏页面徽标共用 */
+const TONE: Record<string, string> = { calendar: 'blue', import: 'gold', scheduler: 'orange', approve: 'green', reject: 'red' }
+const toneOf = (icon?: string) => TONE[icon ?? ''] ?? 'blue'
+/** 顶栏日期胶囊：每次切换页面时刷新一次 */
+const WEEK = ['日', '一', '二', '三', '四', '五', '六']
+const today = computed(() => {
+  void route.fullPath
+  const d = new Date()
+  return `${d.getMonth() + 1}月${d.getDate()}日 · 周${WEEK[d.getDay()]}`
+})
 const groups = computed(() => {
   const m = new Map<string, typeof PAGES[number][]>()
   for (const p of PAGES) {
@@ -21,7 +32,11 @@ const current = computed(() => PAGES.find(p => p.name === route.name))
 <template>
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <div class="logo-icon">📅</div>
+      <div class="logo-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4.5" width="18" height="16.5" rx="3" /><line x1="16" y1="2.5" x2="16" y2="6.5" /><line x1="8" y1="2.5" x2="8" y2="6.5" /><line x1="3" y1="10" x2="21" y2="10" /><polyline points="9 15.2 11.2 17.4 15.4 13.2" />
+        </svg>
+      </div>
       <div class="logo-text">
         <div class="logo-title">Data Query System</div>
         <div class="logo-sub">Attendance Manager</div>
@@ -32,16 +47,7 @@ const current = computed(() => PAGES.find(p => p.name === route.name))
         <div class="sidebar-section-label">{{ group }}</div>
         <RouterLink v-for="p in items" :key="p.name" :to="p.path" class="nav-item" :class="{ active: current?.name === p.name }"
           :title="p.title" active-class="active">
-          <div class="nav-icon" :class="p.icon === 'calendar' ? 'blue' : p.icon === 'import' ? 'gold' : p.icon === 'scheduler' ? 'orange' : p.icon === 'approve' ? 'green' : 'red'">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" :stroke="p.icon === 'calendar' ? 'var(--accent)' : 'currentColor'" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <template v-if="p.icon === 'calendar' || p.icon === 'scheduler'">
-                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-              </template>
-              <template v-else-if="p.icon === 'approve'"><polyline points="20 6 9 17 4 12" /></template>
-              <template v-else-if="p.icon === 'reject'"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></template>
-              <template v-else><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></template>
-            </svg>
-          </div>
+          <div class="nav-icon" :class="toneOf(p.icon)"><NavIcon :icon="p.icon" /></div>
           <span class="nav-label">{{ p.title }}</span>
         </RouterLink>
       </div>
@@ -62,10 +68,13 @@ const current = computed(() => PAGES.find(p => p.name === route.name))
   <div class="main">
     <header class="topbar">
       <div class="breadcrumb">
-        <span class="breadcrumb-item">{{ current?.group }}</span>
-        <span>›</span>
-        <span class="breadcrumb-item current">{{ current?.title }}</span>
+        <span v-if="current" class="crumb-badge nav-icon" :class="toneOf(current.icon)" aria-hidden="true"><NavIcon :icon="current.icon" :size="17" /></span>
+        <div class="crumb-text">
+          <span class="breadcrumb-item">{{ current?.group }}</span>
+          <span class="breadcrumb-item current">{{ current?.title }}</span>
+        </div>
       </div>
+      <span class="topbar-date" :title="'今天 ' + today"><span class="topbar-date-dot" aria-hidden="true" />{{ today }}</span>
       <slot name="topbar" />
     </header>
     <div class="page-content">

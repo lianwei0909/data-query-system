@@ -15,9 +15,21 @@
   --orange:#FFB454;--orange-bg:rgba(255,180,84,.14);
   --purple:#B08BFF;--purple-bg:rgba(176,139,255,.14);
   --gold:#F7C84F;--gold-bg:rgba(247,200,79,.14);
-  --text-primary:#E9EDF5;--text-secondary:#94A0B8;--text-muted:#7C88A2;
+  /* --text-muted 由 #7C88A2 微调提亮：叠加卡片着色后仍 ≥ 4.5 */
+  --text-primary:#E9EDF5;--text-secondary:#94A0B8;--text-muted:#8893AC;
   --radius:16px;--radius-sm:10px;
-  --shadow:none;--shadow-hover:none;
+  /* 暗色也启用投影：顶部 1px 内高光 + 柔和落影，卡片不再“贴在背景上” */
+  --shadow:inset 0 1px 0 rgba(255,255,255,.04),0 12px 32px -16px rgba(0,0,0,.7);
+  --shadow-hover:inset 0 1px 0 rgba(255,255,255,.06),0 18px 40px -16px rgba(0,0,0,.85);
+  /* ── 视觉增强层（polish.css）专用 ── */
+  --glow-1:rgba(91,140,255,.10);--glow-2:rgba(132,82,245,.09);--glow-3:rgba(61,220,151,.05);
+  --card-sheen:rgba(255,255,255,.03);
+  --topbar-bg:rgba(14,18,27,.72);
+  --nav-active-a:rgba(91,140,255,.20);--nav-active-b:rgba(132,82,245,.08);--nav-active-ring:rgba(91,140,255,.28);
+  --tint-blue:rgba(91,140,255,.08);--tint-green:rgba(61,220,151,.08);--tint-orange:rgba(255,180,84,.08);--tint-purple:rgba(176,139,255,.08);
+  --tint-row:rgba(255,255,255,.02);
+  --select-bg:rgba(91,140,255,.08);
+  --brand-shadow:rgba(54,104,246,.55);
   --day-bg:rgba(91,140,255,.16);--night-bg:rgba(255,180,84,.16);
   --rest-bg:rgba(255,107,107,.14);--leave-bg:rgba(176,139,255,.16);
   /* 文字色：班次色 / 状态色直接当文字时用这一组（WCAG AA：在卡片与各自浅色底上 ≥ 4.5） */
@@ -43,9 +55,19 @@
   --orange:#E8892B;--orange-bg:rgba(232,137,43,.12);
   --purple:#8B5CF6;--purple-bg:rgba(139,92,246,.10);
   --gold:#B8860B;--gold-bg:rgba(184,134,11,.12);
-  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#647083;
-  --shadow:0 4px 16px rgba(20,32,64,.06);
-  --shadow-hover:0 6px 22px rgba(20,32,64,.10);
+  /* --text-muted 由 #647083 微调加深：叠加背景光晕后仍 ≥ 4.5 */
+  --text-primary:#16203A;--text-secondary:#5B6779;--text-muted:#5E6A7D;
+  --shadow:0 1px 2px rgba(20,32,64,.04),0 10px 28px -10px rgba(20,32,64,.12);
+  --shadow-hover:0 2px 4px rgba(20,32,64,.05),0 16px 36px -12px rgba(20,32,64,.18);
+  /* ── 视觉增强层（polish.css）专用 ── */
+  --glow-1:rgba(59,108,246,.06);--glow-2:rgba(139,92,246,.05);--glow-3:rgba(18,161,113,.04);
+  --card-sheen:rgba(255,255,255,0);
+  --topbar-bg:rgba(255,255,255,.72);
+  --nav-active-a:rgba(59,108,246,.12);--nav-active-b:rgba(139,92,246,.05);--nav-active-ring:rgba(59,108,246,.22);
+  --tint-blue:rgba(59,108,246,.06);--tint-green:rgba(18,161,113,.06);--tint-orange:rgba(232,137,43,.06);--tint-purple:rgba(139,92,246,.06);
+  --tint-row:rgba(20,32,64,.025);
+  --select-bg:rgba(59,108,246,.07);
+  --brand-shadow:rgba(54,104,246,.35);
   --day-bg:rgba(59,108,246,.10);--night-bg:rgba(232,137,43,.12);
   --rest-bg:rgba(229,72,77,.10);--leave-bg:rgba(139,92,246,.10);
   /* 文字色：亮色底上班次色太浅，单独加深到 ≥ 4.5 */
