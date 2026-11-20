@@ -136,8 +136,6 @@ async function doExport() {
   toast(ok ? '已导出 ' + name : '导出失败：缺少 XLSX 库', ok ? 'success' : 'error')
 }
 function primary() { people.value.length ? run() : router.push('/import') }
-const EXAMPLES = ['周四周五休，周末白班', '11月25日-27日年假', '尽量少上夜班', '每天白班至少3人']
-const useExample = (t: string) => { customText.value = customText.value ? customText.value + '；' + t : t }
 
 onMounted(() => { loadXlsx().then(x => SCH.setXlsx(x)).catch(() => { /* 导出时再提示 */ }) })
 onBeforeUnmount(() => {
@@ -199,9 +197,6 @@ onBeforeUnmount(() => {
             <span class="empty-icon">▦</span>
             <h3>还没有排班结果</h3>
             <p>在左侧填好规则与人员需求，点「⚡ 生成排班」，合规结论和全月班表会出现在这里</p>
-            <div class="empty-examples">
-              <button v-for="t in EXAMPLES" :key="t" type="button" @click="useExample(t)">{{ t }}</button>
-            </div>
           </div>
 
           <div id="summary-box" class="preview-section" :class="{ active: !!last && !message }">

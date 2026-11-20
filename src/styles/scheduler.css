@@ -318,12 +318,6 @@
 .page-scheduler .empty-icon { display: block; font-size: 40px; color: var(--accent-text); margin-bottom: 10px; }
 .page-scheduler .sch-empty-state h3 { font-size: 16px; color: var(--text-primary); }
 .page-scheduler .sch-empty-state p { font-size: 12.5px; color: var(--text-muted); margin: 8px 0 14px; }
-.page-scheduler .empty-examples { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.page-scheduler .empty-examples button {
-  padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card-bg2);
-  color: var(--text-secondary); font-size: 11.5px; font-family: inherit; cursor: pointer;
-}
-.page-scheduler .empty-examples button:hover { border-color: var(--accent); color: var(--accent-text); }
 
 /* ── 夜班均衡 / 校验明细 ── */
 .page-scheduler .summary-bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
